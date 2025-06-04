@@ -1,6 +1,5 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useContext } from 'react';
 import { OrgProjectContext } from '../context/OrgProjectContext';
 import { oauthAPI } from '../api/api';
 

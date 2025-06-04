@@ -29,17 +29,11 @@ function TopBar({ user, onLogout }) {
     };
   }, []);
  
-  // 로그아웃 핸들러 추가
+  // 로그아웃 핸들러 - localStorage 직접 조작 제거
   const handleLogout = () => {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    localStorage.removeItem('isLoggedIn');
-    localStorage.removeItem('userEmail');
-    localStorage.removeItem('userName');
-    localStorage.removeItem('userId');
-    if (typeof onLogout === 'function') onLogout();
-    // 필요하다면 아래 코드로 로그인 페이지로 이동 가능
-    // navigate('/login');
+    if (typeof onLogout === 'function') {
+      onLogout();
+    }
   };
  
   return (
