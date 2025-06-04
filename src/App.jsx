@@ -1,4 +1,8 @@
+<<<<<<< Updated upstream
 import React, { useState } from 'react';
+=======
+import React, { useState, useContext, useEffect } from 'react';
+>>>>>>> Stashed changes
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 
 import TopBar from './components/TopBar';
@@ -15,23 +19,62 @@ import SignupPage from './pages/SignupPage';
 import KakaoCallbackPage from './pages/KakaoCallbackPage';
 import MainPage from './pages/MainPage';
 import NaverCallbackPage from './pages/NaverCallbackPage';
+<<<<<<< Updated upstream
 import { OrgProjectProvider } from './context/OrgProjectContext';
 
 function App() {
+=======
+import UserSettingsPage from './pages/UserSettingsPage';
+import { OrgProjectProvider, OrgProjectContext } from './context/OrgProjectContext';
+
+function App() {
+  return (
+    <OrgProjectProvider>
+      <AppRoutes />
+    </OrgProjectProvider>
+  );
+}
+
+function AppRoutes() {
+  // JWT 토큰 확인하여 초기 로그인 상태 설정
+>>>>>>> Stashed changes
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
-    return localStorage.getItem('isLoggedIn') === 'true';
+    const token = localStorage.getItem('access_token');
+    const isLoggedInFlag = localStorage.getItem('isLoggedIn') === 'true';
+    return token && isLoggedInFlag;
   });
+  
   const [user, setUser] = useState(() => {
     const email = localStorage.getItem('userEmail');
     const name = localStorage.getItem('userName');
     return email ? { email, name } : null;
   });
+<<<<<<< Updated upstream
 
+=======
+  
+>>>>>>> Stashed changes
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const location = useLocation();
   const navigate = useNavigate();
   const isAuthPage = location.pathname === "/login" || location.pathname === "/signup";
+
+  // 컴포넌트 마운트 시 토큰 검증
+  useEffect(() => {
+    const token = localStorage.getItem('access_token');
+    const email = localStorage.getItem('userEmail');
+    const name = localStorage.getItem('userName');
+    
+    if (token && email) {
+      setUser({ email, name });
+      setIsLoggedIn(true);
+      fetchOrganizations();
+    } else {
+      // 토큰이 없거나 유효하지 않으면 로그아웃 처리
+      handleLogout();
+    }
+  }, []);
 
   // 이메일/비밀번호 로그인용
   const handleLogin = (email, password, name) => {
@@ -56,9 +99,12 @@ function App() {
   const handleLogout = () => {
     setUser(null);
     setIsLoggedIn(false);
+    // 모든 인증 관련 데이터 삭제
     localStorage.removeItem('isLoggedIn');
     localStorage.removeItem('userEmail');
     localStorage.removeItem('userName');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
     navigate('/login');
   };
 
@@ -132,6 +178,7 @@ function App() {
                 </main>
               </div>
             </div>
+<<<<<<< Updated upstream
           ) : <Navigate to="/login" replace />} 
         />
         <Route 
@@ -163,7 +210,36 @@ function App() {
         />
       </Routes>
     </OrgProjectProvider>
+=======
+          </div>
+        ) : <Navigate to="/login" replace />} 
+      />
+      <Route 
+        path="/workspace" 
+        element={isLoggedIn ? <Navigate to="/workspace/board" replace /> : <Navigate to="/login" replace />} 
+      />
+      <Route 
+        path="/oauth/kakao/callback" 
+        element={<KakaoCallbackPage />} 
+      />
+      <Route 
+        path="/oauth/naver/callback" 
+        element={<NaverCallbackPage />} 
+      />
+      <Route
+        path="/settings"
+        element={isLoggedIn ? (
+          <div className="min-h-screen bg-white">
+            <TopBar user={user} onLogout={handleLogout} onToggleSidebar={() => setSidebarOpen(prev => !prev)} />
+            <main className="p-6 bg-gray-100">
+              <UserSettingsPage />
+            </main>
+          </div>
+        ) : <Navigate to="/login" replace />}
+      />
+    </Routes>
+>>>>>>> Stashed changes
   );
 }
 
-export default App; 
+export default App;

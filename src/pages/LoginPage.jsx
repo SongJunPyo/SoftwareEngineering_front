@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from 'axios';
+import { authAPI, oauthAPI } from '../api/api';
 import logo from '../components/planora.png';
 import naverLogo from '../components/naver-icon-file.png';
 import { useGoogleLogin } from '@react-oauth/google';
+import axios from 'axios';
 
 function LoginPage({ onLogin }) {
   const [email, setEmail] = useState("");
@@ -19,6 +20,51 @@ function LoginPage({ onLogin }) {
   const [extraPassword, setExtraPassword] = useState("");
   const [extraPasswordConfirm, setExtraPasswordConfirm] = useState("");
   const [extraError, setExtraError] = useState("");
+
+  // 공통 로그인 성공 처리 함수
+  const handleLoginSuccess = (responseData) => {
+    try {
+      // 필수 필드 검증
+      if (!responseData.access_token || !responseData.email) {
+        throw new Error('서버 응답에 필수 정보가 누락되었습니다.');
+      }
+
+      // 토큰 저장
+      localStorage.setItem('access_token', responseData.access_token);
+      if (responseData.refresh_token) {
+        localStorage.setItem('refresh_token', responseData.refresh_token);
+      }
+      
+      // 사용자 정보 저장 (서버에서 받은 정보 사용)
+      localStorage.setItem('isLoggedIn', 'true');
+      localStorage.setItem('userEmail', responseData.email);
+      localStorage.setItem('userName', responseData.name || '');
+      if (responseData.user_id) {
+        localStorage.setItem('userId', responseData.user_id.toString());
+      }
+
+      console.log('로그인 성공:', {
+        email: responseData.email,
+        name: responseData.name,
+        userId: responseData.user_id
+      });
+
+      // 부모 컴포넌트 콜백 호출
+      onLogin(responseData.email, '', responseData.name || '');
+      navigate('/main', { replace: true });
+
+    } catch (error) {
+      console.error('로그인 성공 처리 중 오류:', error);
+      setError('로그인 처리 중 오류가 발생했습니다.');
+      // 실패 시 저장된 데이터 정리
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('isLoggedIn');
+      localStorage.removeItem('userEmail');
+      localStorage.removeItem('userName');
+      localStorage.removeItem('userId');
+    }
+  };
 
   // 구글 로그인 핸들러
   const login = useGoogleLogin({
@@ -37,6 +83,7 @@ function LoginPage({ onLogin }) {
         const { email, name, picture } = userInfoResponse.data;
         console.log("Google 로그인 성공:", { email, name, picture }); // 로깅을 위해 사용
         
+<<<<<<< Updated upstream
         // 로그인 성공 처리
         handleGoogleLoginSuccess(email, name);
       } catch (error) {
@@ -47,6 +94,64 @@ function LoginPage({ onLogin }) {
     onError: () => {
       console.error('구글 로그인 실패');
       alert('구글 로그인에 실패했습니다.');
+=======
+        if (!email) {
+          throw new Error('구글에서 이메일 정보를 가져올 수 없습니다.');
+        }
+
+        // 1. 이메일로 회원 존재 여부 확인
+        const checkResponse = await authAPI.checkEmail(email);
+        
+        if (checkResponse.data.exists) {
+          // 이미 회원이면 바로 로그인
+          const loginResponse = await oauthAPI.google({
+            access_token: tokenResponse.access_token,
+            email: email,
+            name: name
+          });
+
+          // 새로운 응답 형식으로 처리
+          if (loginResponse.data && loginResponse.data.access_token) {
+            handleLoginSuccess(loginResponse.data);
+          } else {
+            throw new Error('서버에서 올바른 로그인 정보를 받지 못했습니다.');
+          }
+        } else {
+          // 신규 회원이면 추가 정보 입력 폼 표시
+          setShowExtraForm(true);
+          setGoogleEmail(email);
+          setGoogleName(name || "");
+          setExtraName(name || "");
+        }
+      } catch (error) {
+        console.error('구글 로그인 중 오류 발생:', error);
+        
+        let errorMessage = '구글 로그인 중 오류가 발생했습니다.';
+        
+        if (error.response?.status === 409) {
+          errorMessage = error.response.data.detail || '이미 일반 회원가입으로 가입된 이메일입니다.';
+        } else if (error.response?.status === 401) {
+          errorMessage = '인증에 실패했습니다. 다시 시도해주세요.';
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        
+        setError(errorMessage);
+      }
+    },
+    onError: (error) => {
+      console.error('구글 로그인 실패:', error);
+      
+      let errorMessage = '구글 로그인에 실패했습니다.';
+      
+      if (error.error === 'popup_closed_by_user') {
+        errorMessage = '로그인 창이 닫혔습니다. 다시 시도해주세요.';
+      } else if (error.error === 'access_denied') {
+        errorMessage = '로그인 권한이 거부되었습니다.';
+      }
+      
+      setError(errorMessage);
+>>>>>>> Stashed changes
     },
   });
 
@@ -55,36 +160,65 @@ function LoginPage({ onLogin }) {
     e.preventDefault();
     setError("");
 
+    // 입력 값 검증
+    if (!email.trim() || !password.trim()) {
+      setError("이메일과 비밀번호를 모두 입력해주세요.");
+      return;
+    }
+
+    if (!email.includes('@') || !email.includes('.')) {
+      setError("올바른 이메일 형식을 입력해주세요.");
+      return;
+    }
+
     try {
+<<<<<<< Updated upstream
       // DB에서 사용자 확인
       const response = await axios.post('http://localhost:8005/api/v1/login', {
         email: email,
+=======
+      const response = await authAPI.login({
+        email: email.trim(),
+>>>>>>> Stashed changes
         password: password
-      }, {
-        headers: {
-          'Content-Type': 'application/json'
-        }
       });
 
-      if (response.data.message === "로그인 성공") {
-        onLogin(email, password, response.data.name || "");
-        navigate('/main', { replace: true });
+      // 새로운 응답 형식 처리
+      if (response.data && response.data.access_token) {
+        handleLoginSuccess(response.data);
       } else {
-        setError(response.data.detail || "로그인에 실패했습니다.");
+        throw new Error('서버에서 올바른 로그인 정보를 받지 못했습니다.');
       }
+      
     } catch (error) {
-      console.error('Login error:', error.response?.data || error);
+      console.error('로그인 오류:', error);
+      
+      let errorMessage = "로그인에 실패했습니다.";
+      
       if (error.response) {
-        if (error.response.status === 401) {
-          setError(error.response.data.detail || "이메일 또는 비밀번호가 일치하지 않습니다.");
-        } else if (error.response.status === 422) {
-          setError("이메일 형식이 올바르지 않습니다.");
-        } else {
-          setError("로그인 중 오류가 발생했습니다.");
+        switch (error.response.status) {
+          case 401:
+            errorMessage = error.response.data.detail || "이메일 또는 비밀번호가 일치하지 않습니다.";
+            break;
+          case 422:
+            errorMessage = "입력 정보가 올바르지 않습니다.";
+            break;
+          case 429:
+            errorMessage = "너무 많은 로그인 시도입니다. 잠시 후 다시 시도해주세요.";
+            break;
+          case 500:
+            errorMessage = "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
+            break;
+          default:
+            errorMessage = "로그인 중 오류가 발생했습니다.";
         }
+      } else if (error.message) {
+        errorMessage = error.message;
       } else {
-        setError("서버 연결에 실패했습니다.");
+        errorMessage = "서버 연결에 실패했습니다.";
       }
+      
+      setError(errorMessage);
     }
   };
 
@@ -113,27 +247,67 @@ function LoginPage({ onLogin }) {
   const handleGoogleSignup = async (e) => {
     e.preventDefault();
     setExtraError("");
-    if (!extraName || !extraPassword || !extraPasswordConfirm) {
+    
+    // 입력 값 검증
+    if (!extraName.trim() || !extraPassword || !extraPasswordConfirm) {
       setExtraError("모든 필드를 입력해주세요.");
       return;
     }
+    
     if (extraPassword !== extraPasswordConfirm) {
       setExtraError("비밀번호가 일치하지 않습니다.");
       return;
     }
+<<<<<<< Updated upstream
     try {
       const response = await axios.post('http://localhost:8005/api/v1/register', {
+=======
+
+    if (extraPassword.length < 8) {
+      setExtraError("비밀번호는 8자리 이상이어야 합니다.");
+      return;
+    }
+
+    try {
+      const response = await oauthAPI.googleRegister({
+>>>>>>> Stashed changes
         email: googleEmail,
-        name: extraName,
+        name: extraName.trim(),
         password: extraPassword,
         password_confirm: extraPasswordConfirm
       });
+<<<<<<< Updated upstream
       if (response.data.message === "회원가입 성공") {
         onLogin(googleEmail, extraPassword, extraName);
         navigate('/main', { replace: true });
+=======
+
+      // 새로운 응답 형식 처리
+      if (response.data && response.data.access_token) {
+        handleLoginSuccess(response.data);
+      } else {
+        throw new Error('서버에서 올바른 회원가입 정보를 받지 못했습니다.');
+>>>>>>> Stashed changes
       }
+      
     } catch (error) {
+<<<<<<< Updated upstream
       setExtraError("회원가입 중 오류가 발생했습니다.");
+=======
+      console.error('구글 회원가입 중 오류 발생:', error);
+      
+      let errorMessage = '회원가입 중 오류가 발생했습니다.';
+      
+      if (error.response?.status === 409) {
+        errorMessage = '이미 존재하는 이메일입니다.';
+      } else if (error.response?.status === 422) {
+        errorMessage = '비밀번호 요구사항이 지켜지지 않았습니다.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      setExtraError(errorMessage);
+>>>>>>> Stashed changes
     }
   };
 

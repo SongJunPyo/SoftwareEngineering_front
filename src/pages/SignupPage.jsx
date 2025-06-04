@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import axios from "axios";
+import { authAPI } from "../api/api";
 import logo from '../components/planora.png';
 
 export default function SignupPage() {
@@ -37,7 +37,11 @@ export default function SignupPage() {
       return;
     }
     try {
+<<<<<<< Updated upstream
       const response = await axios.post('http://localhost:8005/api/v1/register', {
+=======
+      const response = await authAPI.register({
+>>>>>>> Stashed changes
         email: email,
         password: password,
         password_confirm: confirmPassword,
