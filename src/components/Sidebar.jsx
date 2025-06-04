@@ -85,7 +85,10 @@ function Sidebar() {
   };
 
   return (
-    <aside className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 w-64 ml-4 flex flex-col">
+    <aside className="bg-white rounded-2xl shadow-lg border border-gray-200 
+        p-6 w-64 ml-4 flex flex-col 
+        overflow-y-auto 
+        h-[calc(100vh-5rem)]">
       <div className="flex items-center justify-between mb-4 ml-2">
         <h2 className="text-lg font-bold">내 프로젝트</h2>
         <button
