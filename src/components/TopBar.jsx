@@ -1,20 +1,31 @@
 import React, { useState, useRef, useEffect } from "react";
 import logo from "./planora.png";
 import { useLocation, useNavigate } from "react-router-dom";
+import useNotifications from '../hooks/useNotifications';
+
+function getNotificationIcon(type) {
+  switch(type) {
+    case 'comment': return '💬';
+    case 'deadline': return '⏰';
+    case 'project': return '📁';
+    default: return '🔔';
+  }
+}
 
 function TopBar({ user, onLogout }) {
   const [showAlerts, setShowAlerts] = useState(false);
   const alertRef = useRef(null);
   const location = useLocation();
   const navigate = useNavigate();
-
-  const dummyAlerts = [
-    "새로운 댓글이 달렸습니다.",
-    "업무 마감일이 다가옵니다.",
-    "프로젝트에 새로운 팀원이 추가되었습니다.",
-    "미확인 알림이 있습니다.",
-    "일정이 곧 시작됩니다.",
-  ];
+  const {
+     notifications,
+     unreadCount,
+     markAsRead,
+     refresh,
+     loadMore,
+     filter,
+     setFilter
+   } = useNotifications(user);
 
   // 바깥 클릭 시 드롭다운 닫기
   useEffect(() => {
@@ -47,26 +58,78 @@ function TopBar({ user, onLogout }) {
 
       {/* 우측 버튼들 */}
       <div className="flex items-center space-x-4 relative">
-        {/* 알림 버튼 + 드롭다운 */}
-        <div className="relative" ref={alertRef}>
+         <div className="relative" ref={alertRef}>
           <button
-            className="bg-yellow-100 text-white px-4 py-2 rounded"
-            onClick={() => setShowAlerts(prev => !prev)}
+            className="bg-yellow-100 text-white px-4 py-2 rounded relative"
+            onClick={() => {
+              setShowAlerts(prev => !prev);
+              if (!showAlerts) refresh();
+            }}
           >
             🔔
+            {unreadCount > 0 && (
+              <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full">
+                {unreadCount}
+              </span>
+            )}
           </button>
 
           {showAlerts && (
-            <div className="absolute right-0 mt-2 w-64 bg-white border border-gray-200 rounded shadow z-50">
+            <div className="absolute right-0 mt-2 w-72 bg-white border border-gray-200 rounded shadow z-50">
               <div className="p-3">
                 <h4 className="font-semibold text-sm mb-2">알림</h4>
-                <ul className="text-sm space-y-1 max-h-40 overflow-y-auto">
-                  {dummyAlerts.slice(0, 5).map((alert, idx) => (
-                    <li key={idx} className="border-b pb-1">{alert}</li>
+
+                {/* 필터 버튼 */}
+                <div className="flex justify-between mb-2 text-sm">
+                  {['all', 'comment', 'deadline', 'project'].map(t => (
+                    <button
+                      key={t}
+                      onClick={() => setFilter(t)}
+                      className={`px-2 py-1 rounded ${filter === t ? 'bg-blue-200' : 'bg-gray-100'}`}
+                    >
+                      {getNotificationIcon(t)} {t}
+                    </button>
                   ))}
+                </div>
+
+                {/* 알림 목록 */}
+                <ul className="text-sm space-y-1 max-h-52 overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <li className="text-gray-500 text-center py-2">새 알림이 없습니다</li>
+                  ) : (
+                    notifications.slice(0, 10).map(alert => (
+                      <li
+                        key={alert.id}
+                        className={`border-b pb-1 px-1 cursor-pointer ${!alert.is_read ? 'bg-blue-50' : ''}`}
+                        onClick={() => markAsRead(alert.id)}
+                      >
+                        <div className="flex justify-between">
+                          <span>{getNotificationIcon(alert.type)} {alert.message}</span>
+                          {!alert.is_read && <span className="text-xs text-blue-500 ml-2">●</span>}
+                        </div>
+                        <div className="text-xs text-gray-400">
+                          {new Date(alert.created_at).toLocaleString()}
+                        </div>
+                      </li>
+                    ))
+                  )}
                 </ul>
+
+                {/* 더보기 */}
                 <div className="text-right mt-2">
-                  <span className="text-blue-600 underline text-sm cursor-pointer">
+                  <button
+                    onClick={loadMore}
+                    className="text-blue-600 underline text-sm"
+                  >
+                    더보기
+                  </button>
+                </div>
+
+                <div className="text-right mt-2">
+                  <span
+                    className="text-blue-600 underline text-sm cursor-pointer"
+                    onClick={() => navigate('/notifications')}
+                  >
                     전체보기
                   </span>
                 </div>
@@ -74,7 +137,6 @@ function TopBar({ user, onLogout }) {
             </div>
           )}
         </div>
-
         {/* 설정 버튼 */}
         <button className="bg-yellow-100 text-white px-4 py-2 rounded">⚙️</button>
 

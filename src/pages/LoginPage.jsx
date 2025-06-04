@@ -35,19 +35,63 @@ function LoginPage({ onLogin }) {
         );
 
         const { email, name, picture } = userInfoResponse.data;
-        console.log("Google 로그인 성공:", { email, name, picture }); // 로깅을 위해 사용
         
-        // 로그인 성공 처리
-        handleGoogleLoginSuccess(email, name);
+        // 1. 이메일로 회원 존재 여부 확인
+        const checkResponse = await axios.post('http://localhost:8005/api/v1/check-email', { email });
+        
+        if (checkResponse.data.exists) {
+          // 이미 회원이면 바로 로그인
+          const loginResponse = await axios.post('http://localhost:8005/api/v1/oauth/google', {
+            access_token: tokenResponse.access_token,
+            email: email,
+            name: name
+          });
+
+          if (loginResponse.data.access_token) {
+            // JWT 토큰 저장
+            localStorage.setItem('access_token', loginResponse.data.access_token);
+            if (loginResponse.data.refresh_token) {
+              localStorage.setItem('refresh_token', loginResponse.data.refresh_token);
+            }
+            
+            // 사용자 정보 저장
+            localStorage.setItem('isLoggedIn', 'true');
+            localStorage.setItem('userEmail', email);
+            localStorage.setItem('userName', name);
+            
+            onLogin(email, '', name);
+            navigate('/main', { replace: true });
+          }
+        } else {
+          // 신규 회원이면 추가 정보 입력 폼 표시
+          setShowExtraForm(true);
+          setGoogleEmail(email);
+          setGoogleName(name || "");
+          setExtraName(name || "");
+        }
       } catch (error) {
         console.error('구글 로그인 중 오류 발생:', error);
-        alert('구글 로그인 중 오류가 발생했습니다.');
+        if (error.response?.status === 409) {
+          alert(error.response.data.detail || '이미 일반 회원가입으로 가입된 이메일입니다.');
+        } else if (error.response?.status === 401) {
+          alert('인증에 실패했습니다. 다시 시도해주세요.');
+        } else {
+          alert('구글 로그인 중 오류가 발생했습니다.');
+        }
       }
     },
-    onError: () => {
-      console.error('구글 로그인 실패');
-      alert('구글 로그인에 실패했습니다.');
+    onError: (error) => {
+      console.error('구글 로그인 실패:', error);
+      if (error.error === 'popup_closed_by_user') {
+        alert('로그인 창이 닫혔습니다. 다시 시도해주세요.');
+      } else if (error.error === 'access_denied') {
+        alert('로그인 권한이 거부되었습니다.');
+      } else {
+        alert('구글 로그인에 실패했습니다.');
+      }
     },
+    flow: 'implicit',
+    scope: 'email profile openid'
   });
 
   // 이메일/비밀번호 로그인 시
@@ -88,27 +132,6 @@ function LoginPage({ onLogin }) {
     }
   };
 
-  // 구글 로그인 성공 시
-  const handleGoogleLoginSuccess = async (googleEmail, googleName = "") => {
-    try {
-      // 1. 이메일로 회원 존재 여부 확인
-      const res = await axios.post('http://localhost:8005/api/v1/check-email', { email: googleEmail });
-      if (res.data.exists) {
-        // 이미 회원이면 바로 로그인 처리
-        onLogin(googleEmail, '', googleName);
-        navigate('/main', { replace: true });
-      } else {
-        // 추가 정보 입력 폼 표시
-        setShowExtraForm(true);
-        setGoogleEmail(googleEmail);
-        setGoogleName(googleName || "");
-        setExtraName(googleName || "");
-      }
-    } catch (err) {
-      setError("구글 로그인 중 오류가 발생했습니다.");
-    }
-  };
-
   // 구글 추가 정보 회원가입 처리
   const handleGoogleSignup = async (e) => {
     e.preventDefault();
@@ -121,19 +144,39 @@ function LoginPage({ onLogin }) {
       setExtraError("비밀번호가 일치하지 않습니다.");
       return;
     }
+
     try {
-      const response = await axios.post('http://localhost:8005/api/v1/register', {
+      const response = await axios.post('http://localhost:8005/api/v1/oauth/google/register', {
         email: googleEmail,
         name: extraName,
         password: extraPassword,
         password_confirm: extraPasswordConfirm
       });
-      if (response.data.message === "회원가입 성공") {
+
+      if (response.data.access_token) {
+        // JWT 토큰 저장
+        localStorage.setItem('access_token', response.data.access_token);
+        if (response.data.refresh_token) {
+          localStorage.setItem('refresh_token', response.data.refresh_token);
+        }
+        
+        // 사용자 정보 저장
+        localStorage.setItem('isLoggedIn', 'true');
+        localStorage.setItem('userEmail', googleEmail);
+        localStorage.setItem('userName', extraName);
+        
         onLogin(googleEmail, extraPassword, extraName);
         navigate('/main', { replace: true });
       }
     } catch (error) {
-      setExtraError("회원가입 중 오류가 발생했습니다.");
+      console.error('구글 회원가입 중 오류 발생:', error);
+      if (error.response?.status === 409) {
+        setExtraError('이미 존재하는 이메일입니다.');
+      } else if (error.response?.status === 422) {
+        setExtraError('비밀번호 요구사항이 지켜지지 않았습니다.');
+      } else {
+        setExtraError('회원가입 중 오류가 발생했습니다.');
+      }
     }
   };
 
