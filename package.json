@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+<<<<<<< HEAD
     "@fullcalendar/core": "^6.1.17",
     "@fullcalendar/daygrid": "^6.1.17",
     "@fullcalendar/interaction": "^6.1.17",
@@ -20,6 +21,16 @@
     "react-router-dom": "^6.22.3",
     "react-scripts": "5.0.1",
     "socket.io-client": "^4.8.1",
+=======
+    "@react-oauth/google": "^0.12.2",
+    "axios": "^1.9.0",
+    "cra-template-pwa": "2.0.0",
+    "react": "^18.2.0",
+    "react-calendar": "^5.1.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.22.3",
+    "react-scripts": "5.0.1",
+>>>>>>> 2246c8e95d192f7d6f004b0b08fb870b5cf96110
     "web-vitals": "^4.2.4"
   },
   "scripts": {
