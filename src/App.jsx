@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 
 import TopBar from './components/TopBar';
@@ -15,6 +15,7 @@ import SignupPage from './pages/SignupPage';
 import KakaoCallbackPage from './pages/KakaoCallbackPage';
 import MainPage from './pages/MainPage';
 import NaverCallbackPage from './pages/NaverCallbackPage';
+import UserSettingsPage from './pages/UserSettingsPage';
 import { OrgProjectProvider, OrgProjectContext } from './context/OrgProjectContext';
 
 function App() {
@@ -26,19 +27,70 @@ function App() {
 }
 
 function AppRoutes() {
+  // JWT 토큰 확인하여 초기 로그인 상태 설정
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
-    return localStorage.getItem('isLoggedIn') === 'true';
+    const token = localStorage.getItem('access_token');
+    const isLoggedInFlag = localStorage.getItem('isLoggedIn') === 'true';
+    return token && isLoggedInFlag;
   });
+  
   const [user, setUser] = useState(() => {
     const email = localStorage.getItem('userEmail');
     const name = localStorage.getItem('userName');
     return email ? { email, name } : null;
   });
+  
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const location = useLocation();
   const navigate = useNavigate();
-  const isAuthPage = location.pathname === "/login" || location.pathname === "/signup";
   const { fetchOrganizations } = useContext(OrgProjectContext);
+
+  // 로그아웃 함수 (useEffect에서 사용하기 위해 상단으로 이동)
+  const handleLogout = () => {
+    setUser(null);
+    setIsLoggedIn(false);
+    
+    // 모든 인증 관련 데이터 삭제
+    const keysToRemove = [
+      'isLoggedIn', 'userEmail', 'userName', 'access_token', 
+      'refresh_token', 'userId', 'google_oauth_state'
+    ];
+    
+    keysToRemove.forEach(key => {
+      localStorage.removeItem(key);
+      sessionStorage.removeItem(key);
+    });
+    
+    // Google OAuth 세션 정리 (추가 보안)
+    try {
+      // Google OAuth 관련 쿠키 및 세션 정리
+      if (window.google && window.google.accounts) {
+        window.google.accounts.id.disableAutoSelect();
+      }
+    } catch (error) {
+      console.log('Google OAuth 세션 정리 중 오류 (무시 가능):', error);
+    }
+    
+    // 페이지 새로고침으로 모든 상태 완전 초기화
+    window.location.href = '/login';
+  };
+
+  // 컴포넌트 마운트 시 토큰 검증
+  useEffect(() => {
+    const token = localStorage.getItem('access_token');
+    const email = localStorage.getItem('userEmail');
+    const name = localStorage.getItem('userName');
+    
+    if (token && email) {
+      setUser({ email, name });
+      setIsLoggedIn(true);
+      fetchOrganizations();
+    } else if (location.pathname !== '/login' && location.pathname !== '/signup' && 
+               !location.pathname.startsWith('/oauth/')) {
+      // 토큰이 없고 인증이 필요한 페이지인 경우에만 로그아웃 처리
+      handleLogout();
+    }
+  }, [location.pathname]); // fetchOrganizations 의존성 제거로 무한루프 방지
 
   // 이메일/비밀번호 로그인용
   const handleLogin = (email, password, name) => {
@@ -60,15 +112,6 @@ function AppRoutes() {
     if (name) localStorage.setItem('userName', name);
     fetchOrganizations();
     navigate('/main', { replace: true });
-  };
-
-  const handleLogout = () => {
-    setUser(null);
-    setIsLoggedIn(false);
-    localStorage.removeItem('isLoggedIn');
-    localStorage.removeItem('userEmail');
-    localStorage.removeItem('userName');
-    navigate('/login');
   };
 
   return (
@@ -169,8 +212,19 @@ function AppRoutes() {
         path="/oauth/naver/callback" 
         element={<NaverCallbackPage />} 
       />
+      <Route
+        path="/settings"
+        element={isLoggedIn ? (
+          <div className="min-h-screen bg-white">
+            <TopBar user={user} onLogout={handleLogout} onToggleSidebar={() => setSidebarOpen(prev => !prev)} />
+            <main className="p-6 bg-gray-100">
+              <UserSettingsPage />
+            </main>
+          </div>
+        ) : <Navigate to="/login" replace />}
+      />
     </Routes>
   );
 }
 
-export default App; 
+export default App;

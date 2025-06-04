@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect } from 'react';
-import axios from 'axios';
+import { workspaceAPI, projectAPI } from '../api/api';
 import { useNavigate } from 'react-router-dom';
 
 export const OrgProjectContext = createContext();
@@ -21,12 +21,7 @@ export function OrgProjectProvider({ children }) {
         return;
       }
 
-      const res = await axios.get('/api/v1/workspaces', {
-        headers: { 
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      const res = await workspaceAPI.list();
 
       if (res.data) {
         setOrganizations(res.data.map(ws => ({
@@ -52,16 +47,14 @@ export function OrgProjectProvider({ children }) {
   // 프로젝트 목록 불러오기 (조직 선택 시)
   const fetchProjects = async (workspaceId, orgIdx) => {
     try {
-      const token = localStorage.getItem('access_token');
-      const res = await axios.get('/api/v1/projects', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const projects = res.data.filter(p => p.workspace_id === workspaceId)
+      const res = await projectAPI.list({ workspace_id: workspaceId });
+      const projects = res.data
         .map(p => ({ name: p.title, projectId: p.project_id }));
       setOrganizations(prev => prev.map((org, idx) =>
         idx === orgIdx ? { ...org, projects } : org
       ));
     } catch (e) {
+      console.error('프로젝트 목록 불러오기 실패:', e);
       setOrganizations(prev => prev.map((org, idx) =>
         idx === orgIdx ? { ...org, projects: [] } : org
       ));
@@ -82,40 +75,39 @@ export function OrgProjectProvider({ children }) {
   const selectProject = (projIdx) => {
     setSelectedProjectIndex(projIdx);
   };
+
   // 조직 추가 (API 연동)
   const addOrganization = async (orgName) => {
     try {
-      const token = localStorage.getItem('access_token');
-      await axios.post('/api/v1/workspaces', {
+      await workspaceAPI.create({
         name: orgName,
         description: ''
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       await fetchOrganizations();
     } catch (e) {
+      console.error('조직 생성 실패:', e);
       alert('조직 생성 실패');
     }
   };
+
   // 프로젝트 추가 (API 연동)
   const addProject = async (orgIdx, projectName) => {
     const org = organizations[orgIdx];
     if (org && org.orgId) {
       try {
-        const token = localStorage.getItem('access_token');
-        await axios.post('/api/v1/projects', {
+        await projectAPI.create({
           title: projectName,
           description: '',
           workspace_id: org.orgId
-        }, {
-          headers: { Authorization: `Bearer ${token}` }
         });
         await fetchProjects(org.orgId, orgIdx);
       } catch (e) {
+        console.error('프로젝트 생성 실패:', e);
         alert('프로젝트 생성 실패');
       }
     }
   };
+
   // 프로젝트명 편집 (API 연동)
   const editProject = async (orgIdx, projIdx) => {
     const org = organizations[orgIdx];
@@ -123,51 +115,48 @@ export function OrgProjectProvider({ children }) {
     const newName = prompt('새 프로젝트명을 입력하세요', project?.name);
     if (newName && project?.projectId) {
       try {
-        const token = localStorage.getItem('access_token');
-        await axios.put(`/api/v1/projects/${project.projectId}`, {
+        await projectAPI.update(project.projectId, {
           title: newName
-        }, {
-          headers: { Authorization: `Bearer ${token}` }
         });
         await fetchProjects(org.orgId, orgIdx);
       } catch (e) {
+        console.error('프로젝트명 수정 실패:', e);
         alert('프로젝트명 수정 실패');
       }
     }
   };
+
   // 조직 삭제 (API 연동)
   const deleteOrganization = async (orgIdx) => {
     const org = organizations[orgIdx];
     if (org && org.orgId) {
       try {
-        const token = localStorage.getItem('access_token');
-        await axios.delete(`/api/v1/workspaces/${org.orgId}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        await workspaceAPI.delete(org.orgId);
         await fetchOrganizations();
         if (selectedOrgIndex === orgIdx) setSelectedOrgIndex(0);
       } catch (e) {
+        console.error('조직 삭제 실패:', e);
         alert('조직 삭제 실패');
       }
     }
   };
+
   // 프로젝트 삭제 (API 연동)
   const deleteProject = async (orgIdx, projIdx) => {
     const org = organizations[orgIdx];
     const project = org?.projects[projIdx];
     if (project?.projectId) {
       try {
-        const token = localStorage.getItem('access_token');
-        await axios.delete(`/api/v1/projects/${project.projectId}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        await projectAPI.delete(project.projectId);
         await fetchProjects(org.orgId, orgIdx);
         if (selectedProjectIndex === projIdx) setSelectedProjectIndex(0);
       } catch (e) {
+        console.error('프로젝트 삭제 실패:', e);
         alert('프로젝트 삭제 실패');
       }
     }
   };
+
   // 조직 순서 변경
   const moveOrganization = (orgIdx, direction) => {
     setOrganizations(prev => {
@@ -178,12 +167,13 @@ export function OrgProjectProvider({ children }) {
       return arr;
     });
   };
+
   // 프로젝트 순서/조직 이동 (드래그앤드롭)
   const moveProject = async (orgIdx, fromIdx, toIdx, destOrgIdx = null) => {
     const org = organizations[orgIdx];
     const project = org?.projects[fromIdx];
     if (!project?.projectId) return;
-    const token = localStorage.getItem('access_token');
+
     // 같은 조직 내 순서 변경
     if (destOrgIdx === null || destOrgIdx === orgIdx) {
       // 순서 정보 전체를 백엔드에 전송
@@ -192,11 +182,10 @@ export function OrgProjectProvider({ children }) {
         order: idx
       }));
       try {
-        await axios.put('/api/v1/projects/order', newOrder, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        await projectAPI.updateOrder(newOrder);
         await fetchProjects(org.orgId, orgIdx);
       } catch (e) {
+        console.error('프로젝트 순서 변경 실패:', e);
         alert('프로젝트 순서 변경 실패');
       }
     } else {
@@ -204,15 +193,14 @@ export function OrgProjectProvider({ children }) {
       const destOrg = organizations[destOrgIdx];
       if (!destOrg?.orgId) return;
       try {
-        await axios.put(`/api/v1/projects/${project.projectId}/move`, {
+        await projectAPI.move(project.projectId, {
           workspace_id: destOrg.orgId
-        }, {
-          headers: { Authorization: `Bearer ${token}` }
         });
         // 이동 후 양쪽 조직의 프로젝트 목록 새로고침
         await fetchProjects(org.orgId, orgIdx);
         await fetchProjects(destOrg.orgId, destOrgIdx);
       } catch (e) {
+        console.error('프로젝트 이동 실패:', e);
         alert('프로젝트 이동 실패');
       }
     }
@@ -251,4 +239,4 @@ export function OrgProjectProvider({ children }) {
       {children}
     </OrgProjectContext.Provider>
   );
-} 
+}
