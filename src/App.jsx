@@ -1,8 +1,4 @@
-<<<<<<< Updated upstream
-import React, { useState } from 'react';
-=======
 import React, { useState, useContext, useEffect } from 'react';
->>>>>>> Stashed changes
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 
 import TopBar from './components/TopBar';
@@ -19,11 +15,6 @@ import SignupPage from './pages/SignupPage';
 import KakaoCallbackPage from './pages/KakaoCallbackPage';
 import MainPage from './pages/MainPage';
 import NaverCallbackPage from './pages/NaverCallbackPage';
-<<<<<<< Updated upstream
-import { OrgProjectProvider } from './context/OrgProjectContext';
-
-function App() {
-=======
 import UserSettingsPage from './pages/UserSettingsPage';
 import { OrgProjectProvider, OrgProjectContext } from './context/OrgProjectContext';
 
@@ -37,7 +28,6 @@ function App() {
 
 function AppRoutes() {
   // JWT 토큰 확인하여 초기 로그인 상태 설정
->>>>>>> Stashed changes
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     const token = localStorage.getItem('access_token');
     const isLoggedInFlag = localStorage.getItem('isLoggedIn') === 'true';
@@ -49,16 +39,12 @@ function AppRoutes() {
     const name = localStorage.getItem('userName');
     return email ? { email, name } : null;
   });
-<<<<<<< Updated upstream
-
-=======
   
->>>>>>> Stashed changes
   const [sidebarOpen, setSidebarOpen] = useState(true);
-
   const location = useLocation();
   const navigate = useNavigate();
   const isAuthPage = location.pathname === "/login" || location.pathname === "/signup";
+  const { fetchOrganizations } = useContext(OrgProjectContext);
 
   // 컴포넌트 마운트 시 토큰 검증
   useEffect(() => {
@@ -83,6 +69,7 @@ function AppRoutes() {
     localStorage.setItem('isLoggedIn', 'true');
     localStorage.setItem('userEmail', email);
     if (name) localStorage.setItem('userName', name);
+    fetchOrganizations();
     navigate('/main', { replace: true });
   };
 
@@ -93,6 +80,7 @@ function AppRoutes() {
     localStorage.setItem('isLoggedIn', 'true');
     localStorage.setItem('userEmail', email);
     if (name) localStorage.setItem('userName', name);
+    fetchOrganizations();
     navigate('/main', { replace: true });
   };
 
@@ -178,22 +166,6 @@ function AppRoutes() {
                 </main>
               </div>
             </div>
-<<<<<<< Updated upstream
-          ) : <Navigate to="/login" replace />} 
-        />
-        <Route 
-          path="/workspace/all-tasks" 
-          element={isLoggedIn ? (
-            <div className="h-screen flex flex-col">
-              <TopBar user={user} onLogout={handleLogout} onToggleSidebar={() => setSidebarOpen((prev) => !prev)} />
-              <div className="flex flex-1 overflow-hidden">
-                {sidebarOpen && <Sidebar />}
-                <main className="flex-1 overflow-y-auto bg-gray-100">
-                  <ProjectHeader />
-                  <AllTasksPage />
-                </main>
-              </div>
-            </div>
           ) : <Navigate to="/login" replace />} 
         />
         <Route 
@@ -208,37 +180,19 @@ function AppRoutes() {
           path="/oauth/naver/callback" 
           element={<NaverCallbackPage />} 
         />
+        <Route
+          path="/settings"
+          element={isLoggedIn ? (
+            <div className="min-h-screen bg-white">
+              <TopBar user={user} onLogout={handleLogout} onToggleSidebar={() => setSidebarOpen(prev => !prev)} />
+              <main className="p-6 bg-gray-100">
+                <UserSettingsPage />
+              </main>
+            </div>
+          ) : <Navigate to="/login" replace />}
+        />
       </Routes>
     </OrgProjectProvider>
-=======
-          </div>
-        ) : <Navigate to="/login" replace />} 
-      />
-      <Route 
-        path="/workspace" 
-        element={isLoggedIn ? <Navigate to="/workspace/board" replace /> : <Navigate to="/login" replace />} 
-      />
-      <Route 
-        path="/oauth/kakao/callback" 
-        element={<KakaoCallbackPage />} 
-      />
-      <Route 
-        path="/oauth/naver/callback" 
-        element={<NaverCallbackPage />} 
-      />
-      <Route
-        path="/settings"
-        element={isLoggedIn ? (
-          <div className="min-h-screen bg-white">
-            <TopBar user={user} onLogout={handleLogout} onToggleSidebar={() => setSidebarOpen(prev => !prev)} />
-            <main className="p-6 bg-gray-100">
-              <UserSettingsPage />
-            </main>
-          </div>
-        ) : <Navigate to="/login" replace />}
-      />
-    </Routes>
->>>>>>> Stashed changes
   );
 }
 

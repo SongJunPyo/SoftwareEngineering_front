@@ -81,20 +81,7 @@ function LoginPage({ onLogin }) {
         );
 
         const { email, name, picture } = userInfoResponse.data;
-        console.log("Google 로그인 성공:", { email, name, picture }); // 로깅을 위해 사용
         
-<<<<<<< Updated upstream
-        // 로그인 성공 처리
-        handleGoogleLoginSuccess(email, name);
-      } catch (error) {
-        console.error('구글 로그인 중 오류 발생:', error);
-        alert('구글 로그인 중 오류가 발생했습니다.');
-      }
-    },
-    onError: () => {
-      console.error('구글 로그인 실패');
-      alert('구글 로그인에 실패했습니다.');
-=======
         if (!email) {
           throw new Error('구글에서 이메일 정보를 가져올 수 없습니다.');
         }
@@ -151,8 +138,9 @@ function LoginPage({ onLogin }) {
       }
       
       setError(errorMessage);
->>>>>>> Stashed changes
     },
+    flow: 'implicit',
+    scope: 'email profile openid'
   });
 
   // 이메일/비밀번호 로그인 시
@@ -172,14 +160,8 @@ function LoginPage({ onLogin }) {
     }
 
     try {
-<<<<<<< Updated upstream
-      // DB에서 사용자 확인
-      const response = await axios.post('http://localhost:8005/api/v1/login', {
-        email: email,
-=======
       const response = await authAPI.login({
         email: email.trim(),
->>>>>>> Stashed changes
         password: password
       });
 
@@ -222,27 +204,6 @@ function LoginPage({ onLogin }) {
     }
   };
 
-  // 구글 로그인 성공 시
-  const handleGoogleLoginSuccess = async (googleEmail, googleName = "") => {
-    try {
-      // 1. 이메일로 회원 존재 여부 확인
-      const res = await axios.post('http://localhost:8005/api/v1/check-email', { email: googleEmail });
-      if (res.data.exists) {
-        // 이미 회원이면 바로 로그인 처리
-        onLogin(googleEmail, '', googleName);
-        navigate('/main', { replace: true });
-      } else {
-        // 추가 정보 입력 폼 표시
-        setShowExtraForm(true);
-        setGoogleEmail(googleEmail);
-        setGoogleName(googleName || "");
-        setExtraName(googleName || "");
-      }
-    } catch (err) {
-      setError("구글 로그인 중 오류가 발생했습니다.");
-    }
-  };
-
   // 구글 추가 정보 회원가입 처리
   const handleGoogleSignup = async (e) => {
     e.preventDefault();
@@ -258,10 +219,6 @@ function LoginPage({ onLogin }) {
       setExtraError("비밀번호가 일치하지 않습니다.");
       return;
     }
-<<<<<<< Updated upstream
-    try {
-      const response = await axios.post('http://localhost:8005/api/v1/register', {
-=======
 
     if (extraPassword.length < 8) {
       setExtraError("비밀번호는 8자리 이상이어야 합니다.");
@@ -270,30 +227,20 @@ function LoginPage({ onLogin }) {
 
     try {
       const response = await oauthAPI.googleRegister({
->>>>>>> Stashed changes
         email: googleEmail,
         name: extraName.trim(),
         password: extraPassword,
         password_confirm: extraPasswordConfirm
       });
-<<<<<<< Updated upstream
-      if (response.data.message === "회원가입 성공") {
-        onLogin(googleEmail, extraPassword, extraName);
-        navigate('/main', { replace: true });
-=======
 
       // 새로운 응답 형식 처리
       if (response.data && response.data.access_token) {
         handleLoginSuccess(response.data);
       } else {
         throw new Error('서버에서 올바른 회원가입 정보를 받지 못했습니다.');
->>>>>>> Stashed changes
       }
       
     } catch (error) {
-<<<<<<< Updated upstream
-      setExtraError("회원가입 중 오류가 발생했습니다.");
-=======
       console.error('구글 회원가입 중 오류 발생:', error);
       
       let errorMessage = '회원가입 중 오류가 발생했습니다.';
@@ -307,7 +254,6 @@ function LoginPage({ onLogin }) {
       }
       
       setExtraError(errorMessage);
->>>>>>> Stashed changes
     }
   };
 
