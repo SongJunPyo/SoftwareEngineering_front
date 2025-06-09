@@ -12,17 +12,81 @@ export default function SignupPage() {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [provider, setProvider] = useState("");
+  
+  // 초대 컨텍스트 상태
+  const [invitationContext, setInvitationContext] = useState(null);
 
-  // 쿼리스트링에서 email, name, provider 읽어오기 (신규 소셜 회원만)
+  // 초대 컨텍스트 확인 함수
+  const checkInvitationContext = () => {
+    try {
+      const pendingInvitationStr = localStorage.getItem('pendingInvitation');
+      if (!pendingInvitationStr) {
+        console.log('회원가입 페이지 - 초대 컨텍스트 없음');
+        setInvitationContext(null);
+        return null;
+      }
+      
+      const invitationData = JSON.parse(pendingInvitationStr);
+      
+      // 만료 체크
+      if (Date.now() > invitationData.expires) {
+        console.log('회원가입 페이지 - 초대 컨텍스트 만료됨, 정리');
+        localStorage.removeItem('pendingInvitation');
+        setInvitationContext(null);
+        return null;
+      }
+      
+      console.log('회원가입 페이지 - 초대 컨텍스트 발견:', invitationData);
+      setInvitationContext({
+        email: invitationData.email,
+        project: invitationData.project,
+        inviter: invitationData.inviter
+      });
+      return invitationData;
+    } catch (error) {
+      console.error('회원가입 페이지 - 초대 컨텍스트 파싱 오류:', error);
+      localStorage.removeItem('pendingInvitation');
+      setInvitationContext(null);
+      return null;
+    }
+  };
+
+  // 쿼리스트링 및 초대 컨텍스트 확인
   useEffect(() => {
+    // 쿼리스트링에서 email, name, provider 읽어오기 (신규 소셜 회원만)
     const params = new URLSearchParams(location.search);
     const emailParam = params.get("email");
-    // const nameParam = params.get("name"); // 이름은 자동 입력하지 않음
     const providerParam = params.get("provider");
-    if (emailParam) setEmail(emailParam);
-    // if (nameParam) setName(nameParam); // 이름은 항상 빈 값
+    
+    // 초대 컨텍스트 확인
+    const invitationContext = checkInvitationContext();
+    
+    // 이메일 설정 우선순위: 소셜로그인 > 초대 > 빈값
+    if (emailParam) {
+      setEmail(emailParam);
+    } else if (invitationContext?.email) {
+      setEmail(invitationContext.email);
+    }
+    
+    // 소셜 로그인 프로바이더 설정
     if (providerParam) setProvider(providerParam);
   }, [location.search]);
+
+  // 페이지 포커스 시 초대 컨텍스트 재확인
+  useEffect(() => {
+    const handleFocus = () => {
+      console.log('회원가입 페이지 포커스 - 초대 컨텍스트 재확인');
+      const invitationContext = checkInvitationContext();
+      
+      // 소셜 로그인이 아니고 이메일이 비어있다면 초대 이메일로 설정
+      if (invitationContext?.email && !provider && !email) {
+        setEmail(invitationContext.email);
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [provider, email]);
 
   const handleSignup = async (e) => {
     e.preventDefault();
@@ -45,7 +109,32 @@ export default function SignupPage() {
         provider: provider || 'local'
       });
       if (response.data.message === "회원가입 성공") {
-        alert("회원가입이 완료되었습니다. 로그인해주세요.");
+        // 초대 링크 처리
+        try {
+          const pendingInvitationStr = localStorage.getItem('pendingInvitation');
+          if (pendingInvitationStr) {
+            const invitationData = JSON.parse(pendingInvitationStr);
+            
+            // 만료 체크
+            if (Date.now() > invitationData.expires) {
+              console.log('회원가입 완료 - 초대 만료됨, 정리');
+              localStorage.removeItem('pendingInvitation');
+              alert("회원가입이 완료되었습니다. 로그인해주세요.");
+            } else if (invitationData.email === email) {
+              alert(`회원가입이 완료되었습니다. "${invitationData.project}" 프로젝트 초대를 수락하려면 로그인해주세요.`);
+            } else {
+              alert("회원가입이 완료되었습니다. 로그인해주세요.");
+            }
+          } else {
+            alert("회원가입이 완료되었습니다. 로그인해주세요.");
+          }
+        } catch (error) {
+          console.error('회원가입 후 초대 정보 처리 오류:', error);
+          localStorage.removeItem('pendingInvitation');
+          alert("회원가입이 완료되었습니다. 로그인해주세요.");
+        }
+        
+        // 초대 정보를 유지하면서 로그인 페이지로 이동
         navigate('/login');
       }
     } catch (error) {
@@ -95,6 +184,24 @@ export default function SignupPage() {
 
         {/* 회원가입 폼 영역 */}
         <section className="flex-1 p-10 rounded-lg bg-white flex flex-col items-center mt-16">
+          {/* 초대 컨텍스트 표시 */}
+          {invitationContext && (
+            <div className="w-full mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-center mb-2">
+                <svg className="w-5 h-5 text-yellow-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                <h3 className="font-medium text-yellow-800">프로젝트 초대</h3>
+              </div>
+              <p className="text-sm text-yellow-700 mb-1">
+                <strong>"{invitationContext.project}"</strong> 프로젝트에 초대받았습니다.
+              </p>
+              <p className="text-xs text-yellow-600">
+                초대자: {invitationContext.inviter} | 초대 이메일: {invitationContext.email}
+              </p>
+            </div>
+          )}
+          
           {error && (
             <div className="w-full mb-4 p-3 bg-red-100 text-red-700 rounded">
               {error}
@@ -107,7 +214,7 @@ export default function SignupPage() {
             className="w-full border border-gray-300 rounded px-4 py-2 mb-3 text-base"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            readOnly={!!provider} // 소셜 신규회원은 이메일 수정 불가
+            readOnly={!!provider || !!invitationContext} // 소셜 신규회원 또는 초대받은 경우 이메일 수정 불가
           />
           <input
             type="password"

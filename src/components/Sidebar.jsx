@@ -26,15 +26,17 @@ function Sidebar() {
   const [newProjectName, setNewProjectName] = useState("");
   const [editMode, setEditMode] = useState(false);
   const [openOrgs, setOpenOrgs] = useState([]);
+  const [globalCollapseState, setGlobalCollapseState] = useState(false); // 전체 접기/펼치기 상태
   const [showMoveConfirm, setShowMoveConfirm] = useState(false);
   const [moveProjectInfo, setMoveProjectInfo] = useState(null);
 
-  // 편집 모드 진입 시 모든 조직 펼침
+  // 조직 목록이 로드될 때 기본적으로 모든 조직 펼침
   useEffect(() => {
-    if (editMode) {
-      setOpenOrgs(organizations.map((_, idx) => idx));
+    if (organizations.length > 0) {
+      const allOrgIndices = organizations.map((_, idx) => idx);
+      setOpenOrgs(allOrgIndices);
     }
-  }, [editMode, organizations.length]);
+  }, [organizations.length]);
 
   // 드래그 앤 드롭 핸들러
   const parseOrgIdx = (droppableId) => {
@@ -45,7 +47,7 @@ function Sidebar() {
     if (!result.destination) return;
     // 조직 드래그
     if (result.type === 'ORG') {
-      moveOrganization(result.source.index, result.destination.index - result.source.index);
+      moveOrganization(result.source.index, result.destination.index);
     }
     // 프로젝트 드래그
     if (result.type === 'PROJECT') {
@@ -70,9 +72,8 @@ function Sidebar() {
   // 프로젝트 이동 확인 핸들러
   const handleMoveConfirm = () => {
     if (moveProjectInfo) {
-      const { project, sourceOrgIdx, destOrgIdx, sourceIndex } = moveProjectInfo;
-      deleteProject(sourceOrgIdx, sourceIndex);
-      addProject(destOrgIdx, project.name);
+      const { sourceOrgIdx, destOrgIdx, sourceIndex } = moveProjectInfo;
+      moveProject(sourceOrgIdx, sourceIndex, 0, destOrgIdx);
       setShowMoveConfirm(false);
       setMoveProjectInfo(null);
     }
@@ -88,12 +89,32 @@ function Sidebar() {
     <aside className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 w-64 ml-4 flex flex-col">
       <div className="flex items-center justify-between mb-4 ml-2">
         <h2 className="text-lg font-bold">내 프로젝트</h2>
-        <button
-          className={`text-xs px-2 py-1 rounded ${editMode ? 'bg-yellow-400 text-white' : 'bg-gray-200 text-gray-700'}`}
-          onClick={() => setEditMode((prev) => !prev)}
-        >
-          {editMode ? '완료' : '편집'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            className="text-xs px-2 py-1 rounded bg-gray-100 text-gray-600 hover:bg-gray-200"
+            onClick={() => {
+              // 전체 접기/펼치기 토글 (개별 워크스페이스 상태와 독립적)
+              if (globalCollapseState) {
+                // 전체 펼치기
+                setOpenOrgs(organizations.map((_, idx) => idx));
+                setGlobalCollapseState(false);
+              } else {
+                // 전체 접기
+                setOpenOrgs([]);
+                setGlobalCollapseState(true);
+              }
+            }}
+            title="모든 워크스페이스 펼치기/접기"
+          >
+            {globalCollapseState ? '▼' : '▲'}
+          </button>
+          <button
+            className={`text-xs px-2 py-1 rounded ${editMode ? 'bg-yellow-400 text-white' : 'bg-gray-200 text-gray-700'}`}
+            onClick={() => setEditMode((prev) => !prev)}
+          >
+            {editMode ? '완료' : '편집'}
+          </button>
+        </div>
       </div>
       <DragDropContext onDragEnd={onDragEnd}>
         <Droppable droppableId="org-list" type="ORG">
@@ -103,7 +124,7 @@ function Sidebar() {
                 <Draggable key={org.orgName + '-' + orgIdx} draggableId={`org-${org.orgName}-${orgIdx}`} index={orgIdx} isDragDisabled={!editMode}>
                   {(orgProvided) => (
                     <li ref={orgProvided.innerRef} {...orgProvided.draggableProps}>
-                      <div className="flex items-center justify-between bg-gray-200 px-2 py-1 rounded mb-1">
+                      <div className="flex items-center justify-between px-2 py-1 rounded mb-1 bg-gray-200">
                         <span
                           className={`font-semibold ${selectedOrgIndex === orgIdx ? 'text-yellow-600' : 'text-purple-600'} ${editMode ? '' : 'cursor-pointer'}`}
                           onClick={() => {
@@ -113,6 +134,31 @@ function Sidebar() {
                           {org.orgName}
                         </span>
                         <div className="flex items-center gap-1">
+                          <button
+                            className="text-xs text-gray-500"
+                            onClick={() => {
+                              if (openOrgs.includes(orgIdx)) {
+                                const newOpenOrgs = openOrgs.filter(idx => idx !== orgIdx);
+                                setOpenOrgs(newOpenOrgs);
+                                // 개별 조작 시 전체 상태도 업데이트
+                                if (newOpenOrgs.length === 0) {
+                                  setGlobalCollapseState(true);
+                                } else if (newOpenOrgs.length === organizations.length) {
+                                  setGlobalCollapseState(false);
+                                }
+                              } else {
+                                const newOpenOrgs = [...openOrgs, orgIdx];
+                                setOpenOrgs(newOpenOrgs);
+                                // 개별 조작 시 전체 상태도 업데이트
+                                if (newOpenOrgs.length === organizations.length) {
+                                  setGlobalCollapseState(false);
+                                }
+                              }
+                            }}
+                            title="펼치기/접기"
+                          >
+                            {openOrgs.includes(orgIdx) ? '▼' : '▶'}
+                          </button>
                           {editMode && <span {...orgProvided.dragHandleProps} className="cursor-move">☰</span>}
                           {editMode && (
                             <>
@@ -123,7 +169,7 @@ function Sidebar() {
                         </div>
                       </div>
                       {/* 프로젝트 리스트 */}
-                      {(editMode || selectedOrgIndex === orgIdx || openOrgs.includes(orgIdx)) && (
+                      {openOrgs.includes(orgIdx) && (
                         <Droppable droppableId={`org-${org.orgName}-${orgIdx}`} type="PROJECT">
                           {(projProvided) => (
                             <ul className="ml-4 mt-1 space-y-1 bg-white p-2 rounded" ref={projProvided.innerRef} {...projProvided.droppableProps}>
@@ -158,6 +204,7 @@ function Sidebar() {
                                 </Draggable>
                               ))}
                               {projProvided.placeholder}
+                              {/* 편집 모드에서 프로젝트 추가 */}
                               {editMode && (
                                 <li>
                                   {showProjectInput && selectedOrgIndex === orgIdx ? (
@@ -214,6 +261,7 @@ function Sidebar() {
             </ul>
           )}
         </Droppable>
+
       </DragDropContext>
       
       {/* 프로젝트 이동 확인 모달 */}

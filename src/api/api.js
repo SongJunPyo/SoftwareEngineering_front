@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // API 기본 설정
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || '';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8005';
 const API_VERSION = '/api/v1';
 
 // axios 인스턴스 생성
@@ -87,6 +87,22 @@ export const API_ENDPOINTS = {
     DETAIL: (workspaceId) => `${API_VERSION}/workspaces/${workspaceId}`,
     UPDATE: (workspaceId) => `${API_VERSION}/workspaces/${workspaceId}`,
     DELETE: (workspaceId) => `${API_VERSION}/workspaces/${workspaceId}`,
+    ORDER: `${API_VERSION}/workspaces/reorder`,
+  },
+  
+  // 워크스페이스-프로젝트 관계 관리
+  WORKSPACE_PROJECT_ORDER: {
+    ADD: `${API_VERSION}/workspace-project-order/`,
+    REMOVE: (workspaceId, projectId) => `${API_VERSION}/workspace-project-order/${workspaceId}/${projectId}`,
+    UPDATE_ORDER: `${API_VERSION}/workspace-project-order/order`,
+    GET_PROJECTS: (workspaceId) => `${API_VERSION}/workspace-project-order/workspace/${workspaceId}/projects`,
+  },
+  
+  // 사용자 설정
+  USER_SETTINGS: {
+    GET: `${API_VERSION}/user-settings/`,
+    UPDATE: `${API_VERSION}/user-settings/`,
+    RESET: `${API_VERSION}/user-settings/`,
   },
   
   // 프로젝트 관리
@@ -98,6 +114,17 @@ export const API_ENDPOINTS = {
     DELETE: (projectId) => `${API_VERSION}/projects/${projectId}`,
     ORDER: `${API_VERSION}/projects/order`,
     MOVE: (projectId) => `${API_VERSION}/projects/${projectId}/move`,
+    INVITE: (projectId) => `${API_VERSION}/projects/${projectId}/invite`,
+    INVITATIONS: (projectId) => `${API_VERSION}/projects/${projectId}/invitations`,
+    MEMBERS: (projectId) => `${API_VERSION}/projects/${projectId}/members`,
+    REMOVE_MEMBER: (projectId, userId) => `${API_VERSION}/projects/${projectId}/members/${userId}`,
+    UPDATE_MEMBER_ROLE: (projectId, userId) => `${API_VERSION}/projects/${projectId}/members/${userId}/role`,
+    INVITATION_INFO: (invitationId) => `${API_VERSION}/projects/invitations/${invitationId}/info`,
+    ACCEPT_INVITATION: (invitationId) => `${API_VERSION}/projects/invitations/${invitationId}/accept`,
+    REJECT_INVITATION: (invitationId) => `${API_VERSION}/projects/invitations/${invitationId}/reject`,
+    CANCEL_INVITATION: (invitationId) => `${API_VERSION}/projects/invitations/${invitationId}`,
+    RESEND_INVITATION: (invitationId) => `${API_VERSION}/projects/invitations/${invitationId}/resend`,
+    USER_WORKSPACES: `${API_VERSION}/projects/user/workspaces`,
   },
   
   // 사용자 설정 (추후 추가될 예정)
@@ -106,6 +133,13 @@ export const API_ENDPOINTS = {
     SETTINGS: `${API_VERSION}/user/settings`,
     NOTIFICATIONS: `${API_VERSION}/user/notifications`,
     PRIVACY: `${API_VERSION}/user/privacy`,
+  },
+  
+  // 알림 관리
+  NOTIFICATIONS: {
+    LIST: `${API_VERSION}/notifications`,
+    MARK_READ: (notificationId) => `${API_VERSION}/notifications/${notificationId}/read`,
+    MARK_ALL_READ: `${API_VERSION}/notifications/read-all`,
   }
 };
 
@@ -131,6 +165,20 @@ export const workspaceAPI = {
   detail: (workspaceId) => apiClient.get(API_ENDPOINTS.WORKSPACES.DETAIL(workspaceId)),
   update: (workspaceId, workspaceData) => apiClient.put(API_ENDPOINTS.WORKSPACES.UPDATE(workspaceId), workspaceData),
   delete: (workspaceId) => apiClient.delete(API_ENDPOINTS.WORKSPACES.DELETE(workspaceId)),
+  updateOrder: (orderData) => apiClient.patch(API_ENDPOINTS.WORKSPACES.ORDER, orderData),
+};
+
+export const workspaceProjectOrderAPI = {
+  addProject: (data) => apiClient.post(API_ENDPOINTS.WORKSPACE_PROJECT_ORDER.ADD, data),
+  removeProject: (workspaceId, projectId) => apiClient.delete(API_ENDPOINTS.WORKSPACE_PROJECT_ORDER.REMOVE(workspaceId, projectId)),
+  updateOrder: (data) => apiClient.put(API_ENDPOINTS.WORKSPACE_PROJECT_ORDER.UPDATE_ORDER, data),
+  getProjects: (workspaceId) => apiClient.get(API_ENDPOINTS.WORKSPACE_PROJECT_ORDER.GET_PROJECTS(workspaceId)),
+};
+
+export const userSettingsAPI = {
+  get: () => apiClient.get(API_ENDPOINTS.USER_SETTINGS.GET),
+  update: (settingsData) => apiClient.put(API_ENDPOINTS.USER_SETTINGS.UPDATE, settingsData),
+  reset: () => apiClient.delete(API_ENDPOINTS.USER_SETTINGS.RESET),
 };
 
 export const projectAPI = {
@@ -141,6 +189,18 @@ export const projectAPI = {
   delete: (projectId) => apiClient.delete(API_ENDPOINTS.PROJECTS.DELETE(projectId)),
   updateOrder: (orderData) => apiClient.put(API_ENDPOINTS.PROJECTS.ORDER, orderData),
   move: (projectId, moveData) => apiClient.put(API_ENDPOINTS.PROJECTS.MOVE(projectId), moveData),
+  invite: (projectId, email, role = 'member') => apiClient.post(API_ENDPOINTS.PROJECTS.INVITE(projectId), { email, role }),
+  getInvitations: (projectId) => apiClient.get(API_ENDPOINTS.PROJECTS.INVITATIONS(projectId)),
+  getInvitationInfo: (invitationId) => apiClient.get(API_ENDPOINTS.PROJECTS.INVITATION_INFO(invitationId)),
+  getMembers: (projectId) => apiClient.get(API_ENDPOINTS.PROJECTS.MEMBERS(projectId)),
+  removeMember: (projectId, userId) => apiClient.delete(API_ENDPOINTS.PROJECTS.REMOVE_MEMBER(projectId, userId)),
+  updateMemberRole: (projectId, userId, role) => apiClient.put(API_ENDPOINTS.PROJECTS.UPDATE_MEMBER_ROLE(projectId, userId), { role }),
+  acceptInvitation: (invitationId, workspaceId) => apiClient.post(API_ENDPOINTS.PROJECTS.ACCEPT_INVITATION(invitationId), { workspace_id: workspaceId }),
+  rejectInvitation: (invitationId) => apiClient.post(API_ENDPOINTS.PROJECTS.REJECT_INVITATION(invitationId)),
+  cancelInvitation: (invitationId) => apiClient.delete(API_ENDPOINTS.PROJECTS.CANCEL_INVITATION(invitationId)),
+  resendInvitation: (invitationId) => apiClient.post(API_ENDPOINTS.PROJECTS.RESEND_INVITATION(invitationId)),
+  getUserWorkspaces: () => apiClient.get(API_ENDPOINTS.PROJECTS.USER_WORKSPACES),
+  createUserWorkspace: (name) => apiClient.post(API_ENDPOINTS.PROJECTS.USER_WORKSPACES, { name }),
 };
 
 // 사용자 설정 API (추후 구현)
@@ -154,6 +214,13 @@ export const userAPI = {
   getPrivacy: () => apiClient.get(API_ENDPOINTS.USER.PRIVACY),
   updatePrivacy: (privacyData) => apiClient.put(API_ENDPOINTS.USER.PRIVACY, privacyData),
   deleteAccount: () => apiClient.delete(API_ENDPOINTS.USER.PROFILE),
+};
+
+// 알림 API
+export const notificationAPI = {
+  list: (params = {}) => apiClient.get(API_ENDPOINTS.NOTIFICATIONS.LIST, { params }),
+  markAsRead: (notificationId) => apiClient.patch(API_ENDPOINTS.NOTIFICATIONS.MARK_READ(notificationId)),
+  markAllAsRead: () => apiClient.patch(API_ENDPOINTS.NOTIFICATIONS.MARK_ALL_READ),
 };
 
 export default apiClient;

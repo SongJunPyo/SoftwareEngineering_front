@@ -75,6 +75,9 @@ function LoginPage({ onLogin }) {
     password: ""
   });
   const [error, setError] = useState("");
+  
+  // 초대 컨텍스트 상태
+  const [invitationContext, setInvitationContext] = useState(null);
 
   // Google signup form states
   const [googleSignup, setGoogleSignup] = useState({
@@ -87,7 +90,45 @@ function LoginPage({ onLogin }) {
     error: ""
   });
 
-  // OAuth 상태 정리 (컴포넌트 마운트 시)
+  // 초대 컨텍스트 확인 함수
+  const checkInvitationContext = () => {
+    try {
+      const pendingInvitationStr = localStorage.getItem('pendingInvitation');
+      if (!pendingInvitationStr) {
+        console.log('초대 컨텍스트 없음');
+        setInvitationContext(null);
+        return false;
+      }
+      
+      const invitationData = JSON.parse(pendingInvitationStr);
+      
+      // 만료 체크
+      if (Date.now() > invitationData.expires) {
+        console.log('초대 컨텍스트 만료됨 - 정리');
+        localStorage.removeItem('pendingInvitation');
+        setInvitationContext(null);
+        return false;
+      }
+      
+      console.log('초대 컨텍스트 발견:', invitationData);
+      setInvitationContext({
+        email: invitationData.email,
+        project: invitationData.project,
+        inviter: invitationData.inviter
+      });
+      
+      // 초대받은 이메일을 기본값으로 설정
+      setFormData(prev => ({ ...prev, email: invitationData.email }));
+      return true;
+    } catch (error) {
+      console.error('초대 컨텍스트 파싱 오류:', error);
+      localStorage.removeItem('pendingInvitation');
+      setInvitationContext(null);
+      return false;
+    }
+  };
+
+  // OAuth 상태 정리 및 초대 컨텍스트 확인 (컴포넌트 마운트 시)
   useEffect(() => {
     // 이전 OAuth 세션 상태 정리
     try {
@@ -105,6 +146,20 @@ function LoginPage({ onLogin }) {
       url.searchParams.delete('state');
       window.history.replaceState({}, document.title, url.toString());
     }
+    
+    // 초대 컨텍스트 확인
+    checkInvitationContext();
+  }, []);
+
+  // 페이지 포커스 시 초대 컨텍스트 재확인 (다른 탭에서 돌아올 때)
+  useEffect(() => {
+    const handleFocus = () => {
+      console.log('페이지 포커스 - 초대 컨텍스트 재확인');
+      checkInvitationContext();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
   }, []);
 
   // Common login success handler
@@ -135,7 +190,40 @@ function LoginPage({ onLogin }) {
       });
 
       onLogin(responseData.email, '', responseData.name || '');
-      navigate('/main', { replace: true });
+      
+      // 초대 링크 처리
+      try {
+        const pendingInvitationStr = localStorage.getItem('pendingInvitation');
+        if (pendingInvitationStr) {
+          const invitationData = JSON.parse(pendingInvitationStr);
+          
+          // 만료 체크
+          if (Date.now() > invitationData.expires) {
+            console.log('초대 만료됨 - 정리 후 일반 로그인');
+            localStorage.removeItem('pendingInvitation');
+            navigate('/main', { replace: true });
+            return;
+          }
+          
+          if (invitationData.email === responseData.email) {
+            // 초대받은 이메일과 로그인한 이메일이 일치하면 초대 페이지로 이동
+            console.log('초대 이메일과 로그인 이메일이 일치함. 초대 페이지로 이동:', invitationData.url);
+            navigate(invitationData.url, { replace: true });
+          } else {
+            // 다른 이메일로 로그인한 경우 경고
+            console.log('다른 이메일로 로그인함:', { expected: invitationData.email, actual: responseData.email });
+            alert(`초대는 ${invitationData.email}로 발송되었습니다. 해당 계정으로 로그인해주세요.`);
+            navigate('/main', { replace: true });
+          }
+        } else {
+          // 일반 로그인
+          navigate('/main', { replace: true });
+        }
+      } catch (error) {
+        console.error('초대 정보 처리 오류:', error);
+        localStorage.removeItem('pendingInvitation');
+        navigate('/main', { replace: true });
+      }
 
     } catch (error) {
       console.error('로그인 성공 처리 중 오류:', error);
@@ -358,6 +446,24 @@ function LoginPage({ onLogin }) {
         <LoginIntro />
         
         <section className="flex-1 p-8 rounded-lg bg-white flex flex-col items-center max-w-md w-full">
+          {/* 초대 컨텍스트 표시 */}
+          {invitationContext && (
+            <div className="w-full mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-center mb-2">
+                <svg className="w-5 h-5 text-yellow-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                <h3 className="font-medium text-yellow-800">프로젝트 초대</h3>
+              </div>
+              <p className="text-sm text-yellow-700 mb-1">
+                <strong>"{invitationContext.project}"</strong> 프로젝트에 초대받았습니다.
+              </p>
+              <p className="text-xs text-yellow-600">
+                초대자: {invitationContext.inviter} | 초대 이메일: {invitationContext.email}
+              </p>
+            </div>
+          )}
+          
           {googleSignup.showForm ? (
             <GoogleSignupForm
               googleSignup={googleSignup}
