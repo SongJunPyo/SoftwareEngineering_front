@@ -192,7 +192,12 @@ export function OrgProjectProvider({ children }) {
         if (selectedOrgIndex === orgIdx) setSelectedOrgIndex(0);
       } catch (e) {
         console.error('조직 삭제 실패:', e);
-        alert('조직 삭제 실패');
+        if (e.response?.status === 400) {
+          // 워크스페이스에 프로젝트가 있는 경우
+          alert(e.response.data.detail || '워크스페이스에 프로젝트가 있습니다. 모든 프로젝트를 삭제하거나 다른 워크스페이스로 이동한 후 삭제해주세요.');
+        } else {
+          alert('조직 삭제 실패');
+        }
       }
     }
   };

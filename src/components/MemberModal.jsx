@@ -89,11 +89,6 @@ export default function MemberModal({ members, onClose, projectId, currentUser, 
       
       // 초대 목록 새로고침
       await fetchInvitations();
-      
-      // 초대 성공 후 2초 후에 구성원 화면으로 돌아가기
-      setTimeout(() => {
-        switchToMembersMode();
-      }, 2000);
     } catch (error) {
       if (error.response) {
         switch (error.response.status) {
@@ -157,13 +152,21 @@ export default function MemberModal({ members, onClose, projectId, currentUser, 
   };
 
   const handleRoleChange = async (member, newRole) => {
+    // 🔒 관리자 이상만 권한 변경 가능
     if (!isOwner && !isAdmin) {
       alert('관리자 이상 권한이 필요합니다.');
       return;
     }
     
-    if (isAdmin && newRole === 'admin') {
-      alert('소유자만 관리자를 지정할 수 있습니다.');
+    // 🔒 소유자/관리자 권한은 변경 불가
+    if (member.role === 'owner' || member.role === 'admin') {
+      alert('소유자와 관리자의 권한은 변경할 수 없습니다.');
+      return;
+    }
+    
+    // 🔒 관리자는 admin/owner 권한 부여 불가
+    if (isAdmin && !isOwner && (newRole === 'admin' || newRole === 'owner')) {
+      alert('소유자만 관리자 이상 권한을 부여할 수 있습니다.');
       return;
     }
 
@@ -268,8 +271,14 @@ export default function MemberModal({ members, onClose, projectId, currentUser, 
                 members.map(member => {
                   const isCurrentUser = member.email === currentUser?.email;
                   const initials = getInitials(member.name || member.email);
-                  const canRemoveThisMember = canManageMembers && member.role !== 'owner' && (!isCurrentUser || isOwner);
-                  const canChangeRole = (isOwner || isAdmin) && !isCurrentUser;
+                  // 🔒 소유자 보호 및 관리자 간 제거 방지
+                  const canRemoveThisMember = canManageMembers && member.role !== 'owner' && 
+                    (!isCurrentUser || isOwner) && 
+                    !(isAdmin && member.role === 'admin'); // 관리자는 다른 관리자 제거 불가
+                  
+                  // 🔒 관리자 이상만 권한 변경 가능, 단 소유자/관리자 권한은 변경 불가
+                  const canChangeRole = (isOwner || isAdmin) && !isCurrentUser && 
+                    !(member.role === 'owner' || member.role === 'admin');
 
                   return (
                     <li key={member.email || member.id} className="flex items-center gap-3 mb-4 p-3 rounded-lg border hover:bg-gray-50">

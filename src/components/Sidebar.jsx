@@ -163,7 +163,18 @@ function Sidebar() {
                           {editMode && (
                             <>
                               <button className="text-xs text-gray-500" onClick={() => editOrganization(orgIdx)}>✏️</button>
-                              <button className="text-xs text-red-500" onClick={() => { if (window.confirm(`"${org.orgName}" 조직을 정말 삭제하시겠습니까?`)) { deleteOrganization(orgIdx); } }}>🗑</button>
+                              <button className="text-xs text-red-500" onClick={() => { 
+                                const projectCount = org.projects?.length || 0;
+                                const confirmMessage = projectCount > 0 
+                                  ? `"${org.orgName}" 워크스페이스에 ${projectCount}개의 프로젝트가 있습니다.\n모든 프로젝트를 먼저 삭제하거나 다른 워크스페이스로 이동해주세요.`
+                                  : `"${org.orgName}" 워크스페이스를 정말 삭제하시겠습니까?`;
+                                
+                                if (projectCount > 0) {
+                                  alert(confirmMessage);
+                                } else if (window.confirm(confirmMessage)) { 
+                                  deleteOrganization(orgIdx); 
+                                }
+                              }}>🗑</button>
                             </>
                           )}
                         </div>
@@ -195,7 +206,10 @@ function Sidebar() {
                                         {editMode && (
                                           <>
                                             <button className="text-xs text-gray-400 ml-1" onClick={e => { e.stopPropagation(); editProject(orgIdx, projIdx); }}>✏️</button>
-                                            <button className="text-xs text-red-500" onClick={e => { e.stopPropagation(); if (window.confirm(`"${project.name}"을 정말 삭제하시겠습니까?`)) { deleteProject(orgIdx, projIdx); } }}>🗑</button>
+                                            {/* 🔒 소유자만 프로젝트 삭제 가능 */}
+                                            {project.userRole === 'owner' && (
+                                              <button className="text-xs text-red-500" onClick={e => { e.stopPropagation(); if (window.confirm(`"${project.name}"을 정말 삭제하시겠습니까?`)) { deleteProject(orgIdx, projIdx); } }}>🗑</button>
+                                            )}
                                           </>
                                         )}
                                       </div>
