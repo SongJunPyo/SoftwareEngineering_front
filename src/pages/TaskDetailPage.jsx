@@ -64,8 +64,13 @@ export default function TaskDetailPage({
   // 댓글 등록
   const handleAddComment = async () => {
     if (!newComment.trim()) return;
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      alert('로그인 후 이용해주세요.');
+      navigate('/login');
+      return;
+    }
     try {
-      const token = localStorage.getItem('access_token');
       await axios.post('http://localhost:8005/comments/', {
         task_id: taskId,
         content: newComment,
@@ -122,9 +127,17 @@ export default function TaskDetailPage({
   };
   // 댓글 수정 저장
   const handleSaveEdit = async (comment_id) => {
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      alert('로그인 후 이용해주세요.');
+      navigate('/login');
+      return;
+    }
     try {
       await axios.patch(`http://localhost:8005/comments/${comment_id}`, {
         content: editingContent,
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
       });
       setEditingCommentId(null);
       setEditingContent('');
@@ -136,8 +149,16 @@ export default function TaskDetailPage({
   // 댓글 삭제
   const handleDeleteComment = async (comment_id) => {
     if (!window.confirm('정말 삭제하시겠습니까?')) return;
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      alert('로그인 후 이용해주세요.');
+      navigate('/login');
+      return;
+    }
     try {
-      await axios.delete(`http://localhost:8005/comments/${comment_id}`);
+      await axios.delete(`http://localhost:8005/comments/${comment_id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       fetchComments();
     } catch (err) {
       alert('댓글 삭제 실패');
