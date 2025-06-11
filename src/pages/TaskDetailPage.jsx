@@ -17,6 +17,10 @@ export default function TaskDetailPage({
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [comments, setComments] = useState([]);
+  const [newComment, setNewComment] = useState('');
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editingContent, setEditingContent] = useState('');
 
   // 상세 조회
   useEffect(() => {
@@ -42,6 +46,38 @@ export default function TaskDetailPage({
         setLoading(false);
       });
   }, [taskId, navigate]);
+
+  // 댓글 목록 불러오기
+  const fetchComments = async () => {
+    try {
+      const res = await axios.get(`http://localhost:8005/comments/task/${taskId}`);
+      setComments(res.data);
+    } catch (err) {
+      console.error('댓글 불러오기 실패:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (taskId) fetchComments();
+  }, [taskId]);
+
+  // 댓글 등록
+  const handleAddComment = async () => {
+    if (!newComment.trim()) return;
+    try {
+      const token = localStorage.getItem('access_token');
+      await axios.post('http://localhost:8005/comments/', {
+        task_id: taskId,
+        content: newComment,
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setNewComment('');
+      fetchComments();
+    } catch (err) {
+      alert('댓글 등록 실패');
+    }
+  };
 
   const handleDescriptionChange = (e) => setDescription(e.target.value);
 
@@ -71,6 +107,40 @@ export default function TaskDetailPage({
     } catch (err) {
       console.error('저장 실패:', err);
       alert(err.response?.data?.detail || '저장 중 오류가 발생했습니다.');
+    }
+  };
+
+  // 댓글 수정 시작
+  const handleEditComment = (comment) => {
+    setEditingCommentId(comment.comment_id);
+    setEditingContent(comment.content);
+  };
+  // 댓글 수정 취소
+  const handleCancelEdit = () => {
+    setEditingCommentId(null);
+    setEditingContent('');
+  };
+  // 댓글 수정 저장
+  const handleSaveEdit = async (comment_id) => {
+    try {
+      await axios.patch(`http://localhost:8005/comments/${comment_id}`, {
+        content: editingContent,
+      });
+      setEditingCommentId(null);
+      setEditingContent('');
+      fetchComments();
+    } catch (err) {
+      alert('댓글 수정 실패');
+    }
+  };
+  // 댓글 삭제
+  const handleDeleteComment = async (comment_id) => {
+    if (!window.confirm('정말 삭제하시겠습니까?')) return;
+    try {
+      await axios.delete(`http://localhost:8005/comments/${comment_id}`);
+      fetchComments();
+    } catch (err) {
+      alert('댓글 삭제 실패');
     }
   };
 
@@ -170,6 +240,76 @@ export default function TaskDetailPage({
             >
               설명 저장
             </button>
+          </div>
+          {/* 댓글 작성 및 목록 */}
+          <div className="mt-8">
+            <h3 className="text-lg font-bold mb-2">댓글</h3>
+            <div className="flex items-center mb-2">
+              <textarea
+                className="flex-1 border border-gray-300 rounded-md p-2 mr-2"
+                rows={2}
+                value={newComment}
+                onChange={e => setNewComment(e.target.value)}
+                placeholder="댓글을 입력하세요."
+              />
+              <button
+                onClick={handleAddComment}
+                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md"
+              >
+                댓글 등록
+              </button>
+            </div>
+            <ul className="space-y-2 mt-4">
+              {comments.length === 0 ? (
+                <li className="text-gray-400">아직 댓글이 없습니다.</li>
+              ) : (
+                comments.map(c => (
+                  <li key={c.comment_id} className="bg-gray-100 rounded-md p-2">
+                    {editingCommentId === c.comment_id ? (
+                      <div>
+                        <textarea
+                          className="w-full border border-gray-300 rounded-md p-2 mb-2"
+                          rows={2}
+                          value={editingContent}
+                          onChange={e => setEditingContent(e.target.value)}
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleSaveEdit(c.comment_id)}
+                            className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-md"
+                          >
+                            저장
+                          </button>
+                          <button
+                            onClick={handleCancelEdit}
+                            className="bg-gray-400 hover:bg-gray-500 text-white px-3 py-1 rounded-md"
+                          >
+                            취소
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="text-sm text-gray-800">{c.content}</div>
+                          <div className="text-xs text-gray-500 mt-1">{new Date(c.updated_at).toLocaleString()} {c.is_updated ? '(수정됨)' : ''}</div>
+                        </div>
+                        <div className="flex gap-2 ml-2">
+                          <button
+                            onClick={() => handleEditComment(c)}
+                            className="text-blue-500 hover:underline text-xs"
+                          >수정</button>
+                          <button
+                            onClick={() => handleDeleteComment(c.comment_id)}
+                            className="text-red-500 hover:underline text-xs"
+                          >삭제</button>
+                        </div>
+                      </div>
+                    )}
+                  </li>
+                ))
+              )}
+            </ul>
           </div>
         </div>
 

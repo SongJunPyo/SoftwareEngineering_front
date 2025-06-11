@@ -105,8 +105,8 @@ function AllTasksPage() {
 
     const payload = {
       title: form.title,
-      start_date: form.startDate,
-      due_date: form.dueDate,
+      start_date: form.startDate.length === 10 ? form.startDate + 'T00:00:00' : form.startDate,
+      due_date: form.dueDate.length === 10 ? form.dueDate + 'T00:00:00' : form.dueDate,
       assignee_id: assigneeId,
       parent_task_id: parentTaskId,
       priority: form.priority,
