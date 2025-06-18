@@ -1,167 +1,366 @@
-//업무추가 버튼 클릭 시 이벤트
+import React, { useContext, useState, useEffect } from 'react';
+import axios from 'axios';
+import { OrgProjectContext } from '../context/OrgProjectContext';
+import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import TaskDetailPage from './TaskDetailPage';
+import Modal from '../components/Task_Modal';
 
 
-import React, { useContext, useState } from "react";
-import Sidebar from "../components/Sidebar";
-import { OrgProjectContext } from "../context/OrgProjectContext";
+function AllTasksPage() {
+  // 1) Context 훅 (항상 최상단)
+  const { organizations, selectedOrgIndex, selectedProjectIndex } =
+    useContext(OrgProjectContext);
+  const navigate = useNavigate();
 
-const tasksData = [
-  {
-    id: 1,
-    key: "영업 시작",
-    summary: "영업 시작",
-    status: "해야 할 일",
-    assignee: "Taesu Kim",
-    dueDate: "2025년 3월 16일"
-  },
-  {
-    id: 2,
-    key: "영업 시작",
-    summary: "기능 업데이트에 대한 설명서 업데이트",
-    status: "진행 중",
-    assignee: "Taesu Kim",
-    dueDate: "2025년 3월 13일"
-  },
-  {
-    id: 3,
-    key: "웹 사이트 및 앱 일러스트레이션",
-    summary: "웹 세미나 추적",
-    status: "진행 중",
-    assignee: "",
-    dueDate: ""
-  }
-];
-
-function TasksContent() {
-  const [selectedStatus, setSelectedStatus] = useState("전체");
-  const [searchText, setSearchText] = useState("");
-  const [selectedTasks, setSelectedTasks] = useState([]);
-
-  const filteredTasks = tasksData.filter((task) => {
-    const statusMatch = selectedStatus === "전체" || task.status === selectedStatus;
-    const searchMatch = task.summary.toLowerCase().includes(searchText.toLowerCase());
-    return statusMatch && searchMatch;
+  // 2) State 훅들 (항상 같은 순서로 호출)
+  const [tasks, setTasks]         = useState([]);
+  const [members, setMembers]     = useState([]);
+  const [showModal, setShowModal] = useState(false);
+  const [openTaskId, setOpenTaskId] = useState(null);
+  const [form, setForm]           = useState({
+    title: '',
+    startDate: new Date().toISOString().slice(0, 10),
+    dueDate: new Date().toISOString().slice(0, 10),
+    assignee: '',
+    parentTask: '',
+    priority: 'medium',
   });
 
-  const toggleSelect = (taskId) => {
-    setSelectedTasks((prev) =>
-      prev.includes(taskId) ? prev.filter((id) => id !== taskId) : [...prev, taskId]
-    );
+  // 3) currentOrg / currentProject 계산
+  const currentOrg = organizations?.[selectedOrgIndex];
+  const currentProject = currentOrg?.projects?.[selectedProjectIndex];
+  // projectId를 컴포넌트 최상단에서 정의해 두면,
+  // useEffect나 handleSubmit 안에서도 자유롭게 쓸 수 있습니다.
+  const projectId = currentProject?.project_id ?? null;
+
+  // 4) 프로젝트가 바뀔 때마다 Tasks, Members를 불러오기
+  useEffect(() => {
+    if (!currentProject) return;   // projectId가 null이면 아무것도 하지 않음
+
+    const projectId = currentProject.projectId;  
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      alert('로그인 후 이용하세요.');
+      navigate('/login');
+      return;
+    }
+
+    // 4-1) 작업 목록 호출
+    axios
+      .get(`http://localhost:8005/api/v1/tasks?project_id=${projectId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((res) => {
+        setTasks(res.data);
+      })
+      .catch((err) => {
+        console.error('작업 목록 로드 실패:', err);
+        if (err.response?.status === 401) {
+          localStorage.removeItem('access_token');
+          navigate('/login');
+        }
+      });
+
+    // 4-2) 프로젝트 멤버 목록 호출
+    axios
+      .get(`http://localhost:8005/api/v1/project_members?project_id=${projectId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((res) => {
+        setMembers(res.data);
+      })
+      .catch((err) => {
+        console.error('프로젝트 멤버 목록 로드 실패:', err);
+        if (err.response?.status === 401) {
+          localStorage.removeItem('access_token');
+          navigate('/login');
+        }
+      });
+  }, [projectId, navigate]); 
+  // ESLint 경고를 없애려면, useEffect 의존성에 projectId와 navigate를 넣어야 합니다.
+
+  // 5) 조기 리턴: 아직 프로젝트가 선택되지 않았거나 로딩 중이면
+  if (!currentOrg || !currentProject) {
+    return <div>프로젝트를 선택하거나, 로딩 중입니다…</div>;
+  }
+
+  // 6) 모달 열기/닫기 핸들러
+  const handleOpenModal = () => setShowModal(true);
+  const handleCloseModal = () => setShowModal(false);
+
+  // 7) 폼 입력 변화 핸들러
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm(prev => ({ ...prev, [name]: value }));
   };
 
-  const isNearDeadline = (dateStr) => {
-    if (!dateStr) return false;
-    const today = new Date();
-    const deadline = new Date(dateStr.replace(/년 |월 /g, "-").replace("일", ""));
-    const diffTime = deadline - today;
-    return diffTime <= 1000 * 60 * 60 * 24 * 7; // 7일 이내
+  // 8) 폼 제출 (업무 생성)
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    // 숫자로 변환하거나 null 처리
+    const assigneeId   = form.assignee ? Number(form.assignee) : null;
+    const parentTaskId = form.parentTask ? Number(form.parentTask) : null;
+
+    const payload = {
+      title: form.title,
+      start_date: form.startDate.length === 10 ? form.startDate + 'T00:00:00' : form.startDate,
+      due_date: form.dueDate.length === 10 ? form.dueDate + 'T00:00:00' : form.dueDate,
+      assignee_id: assigneeId,
+      parent_task_id: parentTaskId,
+      priority: form.priority,
+      project_id: currentProject.projectId,  // <-- 여기서도 projectId를 사용
+    };
+
+    // 간단 유효성 검사
+    if (!payload.title || !payload.start_date || !payload.due_date) {
+      alert('업무명, 시작일, 마감일은 필수 입력 항목입니다.');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('access_token');
+      const res = await axios.post(
+        'http://localhost:8005/api/v1/tasks',
+        payload,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+
+      // 생성된 업무 객체를 받아와서 리스트에 추가
+      setTasks(prev => [...prev, res.data]);
+      handleCloseModal();
+
+      // 폼 초기화
+      setForm({
+        title: '',
+        startDate: new Date().toISOString().slice(0, 10),
+        dueDate: new Date().toISOString().slice(0, 10),
+        assignee: '',
+        parentTask: '',
+        priority: 'medium',
+      });
+    } catch (err) {
+      console.error('업무 생성 실패:', err);
+      alert(err.response?.data?.detail || '업무 생성 중 오류가 발생했습니다.');
+      if (err.response?.status === 401) {
+        localStorage.removeItem('access_token');
+        navigate('/login');
+      }
+    }
   };
+
+  const Modal = ({ children, onClose }) => (
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-lg shadow-lg max-w-4xl w-full max-h-[90vh] overflow-auto p-6 relative"
+        onClick={e => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 text-gray-500 hover:text-gray-700"
+        >
+          ✕
+        </button>
+        {children}
+      </div>
+    </div>
+  );
 
   return (
-    <div className="p-6">
-      <h2 className="text-2xl font-bold mb-4">📋 모든 업무</h2>
-
-      {/* 필터 및 버튼 영역 */}
-      <div className="mb-4 flex flex-wrap md:flex-nowrap items-center justify-between gap-2">
-        <div className="flex flex-grow gap-2">
-          <input
-            type="text"
-            placeholder="업무 내용 검색"
-            className="border rounded px-3 py-1 w-full md:w-64"
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-          />
-          <select
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-            className="border rounded px-3 py-1 w-full md:w-40"
-          >
-            <option value="전체">전체</option>
-            <option value="해야 할 일">해야 할 일</option>
-            <option value="진행 중">진행 중</option>
-            <option value="완료">완료</option>
-          </select>
-        </div>
-
+    <div className="p-4">
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-2xl font-semibold">All Tasks</h1>
         <button
-          className="bg-blue-500 text-white px-4 py-1 rounded hover:bg-blue-600 ml-auto"
-          onClick={() => alert("업무 추가 버튼 클릭됨")}
+          onClick={handleOpenModal}
+          className="bg-blue-500 text-white px-4 py-2 rounded"
         >
           + 업무 추가
         </button>
       </div>
 
-      {/* 테이블 */}
-      <div className="overflow-x-auto">
-        <table className="min-w-full border border-gray-200 text-sm">
-          <thead>
-            <tr className="bg-gray-100">
-              <th className="border p-2"><input type="checkbox" disabled /></th>
-              <th className="border p-2">상위 업무</th>
-              <th className="border p-2">업무명</th>
-              <th className="border p-2">상태</th>
-              <th className="border p-2">담당자</th>
-              <th className="border p-2">기한</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredTasks.map((task) => (
-              <tr key={task.id}>
-                <td className="border p-2 text-center">
-                  <input
-                    type="checkbox"
-                    checked={selectedTasks.includes(task.id)}
-                    onChange={() => toggleSelect(task.id)}
-                  />
-                </td>
-                <td className="border p-2">{task.key}</td>
-                <td className="border p-2">{task.summary}</td>
-                <td className="border p-2">{task.status}</td>
-                <td className="border p-2">{task.assignee}</td>
-                <td className="border p-2">
-                  <span className={
-                    isNearDeadline(task.dueDate)
-                      ? "text-red-500 font-semibold"
-                      : ""
-                  }>
-                    {task.dueDate || "-"}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
+      {/* 모달 창 */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="bg-white p-6 rounded shadow-lg w-full max-w-md">
+            <h2 className="text-xl mb-4">업무 추가</h2>
+            <form onSubmit={handleSubmit}>
+              {/* 업무명 */}
+              <div className="mb-2">
+                <label className="block">
+                  업무명<span className="text-red-500">*</span>
+                </label>
+                <input
+                  name="title"           // 반드시 "title"로 맞추기
+                  value={form.title}
+                  onChange={handleChange}
+                  required
+                  className="border w-full p-2 rounded"
+                />
+              </div>
 
-export default function AllTasksPage({ inner }) {
-  const { organizations, selectedOrgIndex, selectedProjectIndex } = useContext(OrgProjectContext);
-  const org = organizations[selectedOrgIndex];
-  const project = org ? org.projects[selectedProjectIndex] : null;
+              {/* 시작일 */}
+              <div className="mb-2">
+                <label>시작일</label>
+                <input
+                  type="date"
+                  name="startDate"
+                  value={form.startDate}
+                  onChange={handleChange}
+                  className="border w-full p-2 rounded"
+                />
+              </div>
 
-  if (inner) {
-    return <TasksContent />;
-  }
+              {/* 마감일 */}
+              <div className="mb-2">
+                <label>마감일</label>
+                <input
+                  type="date"
+                  name="dueDate"
+                  value={form.dueDate}
+                  onChange={handleChange}
+                  className="border w-full p-2 rounded"
+                />
+              </div>
 
-  return (
-    <div className="flex flex-1">
-      <Sidebar />
-      <main className="flex-1 p-8">
-        <h1 className="text-3xl font-extrabold mb-2">{project ? project.name : '프로젝트를 선택하세요'}</h1>
-        <p className="text-gray-500 mb-8">{org ? org.orgName : '조직을 선택하세요'}</p>
-        <div className="border-b border-gray-200 mb-8">
-          <nav className="flex space-x-8">
-            <span className="py-2 px-1 text-gray-500 cursor-pointer">main</span>
-            <span className="py-2 px-1 text-gray-500 cursor-pointer">board</span>
-            <span className="py-2 px-1 text-gray-500 cursor-pointer">callendar</span>
-            <span className="py-2 px-1 border-b-2 border-yellow-400 font-bold text-gray-900 cursor-pointer">tasks</span>
-            <span className="py-2 px-1 text-gray-500 cursor-pointer">log</span>
-          </nav>
+              {/* 담당자 선택 */}
+              <div className="mb-2">
+                <label>담당자</label>
+                <select
+                  name="assignee"
+                  value={form.assignee}
+                  onChange={handleChange}
+                  className="border w-full p-2 rounded"
+                >
+                  <option value="">없음</option>
+                  {members.map(member => (
+                    <option
+                      key={member.user_id}        // 고유 key prop
+                      value={member.user_id}      // 실제 user_id를 value로 사용
+                    >
+                      {member.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 상위 업무 선택 */}
+              <div className="mb-2">
+                <label>상위 업무</label>
+                <select
+                  name="parentTask"
+                  value={form.parentTask}
+                  onChange={handleChange}
+                  className="border w-full p-2 rounded"
+                >
+                  <option value="">없음</option>
+                  {tasks.map(task => (
+                    <option
+                      key={task.task_id}          // 고유 key prop
+                      value={task.task_id}
+                    >
+                      {task.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 우선순위 */}
+              <div className="mb-4">
+                <label>우선순위</label>
+                <select
+                  name="priority"
+                  value={form.priority}
+                  onChange={handleChange}
+                  className="border w-full p-2 rounded"
+                >
+                  <option value="low">low</option>
+                  <option value="medium">medium</option>
+                  <option value="high">high</option>
+                </select>
+              </div>
+
+              {/* 취소/저장 버튼 */}
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="mr-2 px-4 py-2"
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  className="bg-blue-500 text-white px-4 py-2 rounded"
+                >
+                  저장
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
-        <TasksContent />
-      </main>
+      )}
+
+      {openTaskId && (
+        <Modal onClose={handleCloseModal}> 
+          <TaskDetailPage taskId={openTaskId} inner />
+        </Modal>
+      )}
+
+      {/* 업무 리스트 */}
+      <ul>
+        {/* {tasks.map(task => (
+          <li key={task.task_id} className="border-b py-2 hover:bg-gray-50">
+            <Link to={`/tasks/${task.task_id}`} className="block">
+              <strong className="text-blue-600">{task.title}</strong> &nbsp;
+              {task.assignee_name ? (
+                <span className="text-gray-500">(담당자: {task.assignee_name})</span>
+              ) : (
+                <span className="text-gray-500">(담당자: 없음)</span>
+              )}
+              <br />
+              <small className="text-gray-400">
+                우선순위: {task.priority} | 시작: {task.start_date.slice(0, 10)} | 마감:{' '}
+                {task.due_date.slice(0, 10)}
+              </small>
+            </Link>
+          </li>
+        ))} */}
+        
+        {tasks.map(task => (
+          <li key={task.task_id} className="border-b py-2 hover:bg-gray-50">
+            <button
+              className="block text-left w-full"
+              onClick={() => setOpenTaskId(task.task_id)}
+            >
+              <strong className="text-blue-600">{task.title}</strong>&nbsp;
+              {task.assignee_name
+                ? <span className="text-gray-500">(담당자: {task.assignee_name})</span>
+                : <span className="text-gray-500">(담당자: 없음)</span>
+              }
+              <br/>
+              <small className="text-gray-400">
+                우선순위: {task.priority} | 시작: {task.start_date.slice(0,10)} | 마감: {task.due_date.slice(0,10)}
+              </small>
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      {/* 모달 */}
+      {openTaskId && (
+        <Modal onClose={() => setOpenTaskId(null)}>
+          {/* inner prop으로 기존 레이아웃 충돌 최소화 */}
+          <TaskDetailPage taskId={openTaskId} inner />
+        </Modal>
+      )}
     </div>
   );
 }
+
+export default AllTasksPage;
