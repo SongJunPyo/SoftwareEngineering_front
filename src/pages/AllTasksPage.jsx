@@ -100,7 +100,11 @@ function AllTasksPage() {
     e.preventDefault();
 
     // 숫자로 변환하거나 null 처리
-    const assigneeId   = form.assignee ? Number(form.assignee) : null;
+    const assigneeId = form.assignee ? Number(form.assignee) : null;
+    if (!assigneeId) {
+      alert('담당자를 선택하세요.');
+      return;
+    }
     const parentTaskId = form.parentTask ? Number(form.parentTask) : null;
 
     const payload = {
@@ -237,7 +241,7 @@ function AllTasksPage() {
                   onChange={handleChange}
                   className="border w-full p-2 rounded"
                 >
-                  <option value="">없음</option>
+                  <option value="">담당자 선택</option>
                   {members.map(member => (
                     <option
                       key={member.user_id}        // 고유 key prop

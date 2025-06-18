@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import useNotifications from '../hooks/useNotifications';
 
 function getNotificationIcon(type) {
@@ -11,6 +12,7 @@ function getNotificationIcon(type) {
 }
 
 function NotificationsPage({ user }) {
+  const navigate = useNavigate();
   const {
     notifications,
     unreadCount,
@@ -23,12 +25,24 @@ function NotificationsPage({ user }) {
 
   const [markAllLoading, setMarkAllLoading] = useState(false);
 
+  const handleNotificationClick = async (notification) => {
+    // 알림을 읽음 처리
+    await markAsRead(notification.notification_id);
+
+    // channel과 type에 따라 페이지 이동
+    if (notification.channel === 'task') {
+      navigate(`/tasks/${notification.type}`);
+    } else if (notification.channel === 'project') {
+      navigate(`/projects/${notification.type}`);
+    }
+  };
+
   const handleMarkAllAsRead = async () => {
     setMarkAllLoading(true);
     try {
       // 읽지 않은 알림들을 모두 읽음 처리
       const unreadNotifications = notifications.filter(n => !n.is_read);
-      await Promise.all(unreadNotifications.map(n => markAsRead(n.id)));
+      await Promise.all(unreadNotifications.map(n => markAsRead(n.notification_id)));
       refresh();
     } catch (error) {
       console.error('모든 알림 읽음 처리 실패:', error);
@@ -94,13 +108,13 @@ function NotificationsPage({ user }) {
         ) : (
           notifications.map(notification => (
             <div
-              key={notification.id}
+              key={notification.notification_id}
               className={`p-4 rounded-lg border cursor-pointer transition-colors ${
                 !notification.is_read 
                   ? 'bg-blue-50 border-blue-200 hover:bg-blue-100' 
                   : 'bg-white border-gray-200 hover:bg-gray-50'
               }`}
-              onClick={() => markAsRead(notification.id)}
+              onClick={() => handleNotificationClick(notification)}
             >
               <div className="flex items-start space-x-3">
                 <div className="text-2xl">
