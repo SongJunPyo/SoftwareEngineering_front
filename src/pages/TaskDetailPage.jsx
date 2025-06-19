@@ -33,7 +33,8 @@ export default function TaskDetailPage({
     member_ids: [],
     start_date: '',
     due_date: '',
-    parent_task_id: ''
+    parent_task_id: '',
+    is_parent_task: false
   });
   const [projectMembers, setProjectMembers] = useState([]);
   const [projectTasks, setProjectTasks] = useState([]);
@@ -63,7 +64,8 @@ export default function TaskDetailPage({
           member_ids: res.data.member_ids || [],
           start_date: res.data.start_date ? res.data.start_date.slice(0, 10) : '',
           due_date: res.data.due_date ? res.data.due_date.slice(0, 10) : '',
-          parent_task_id: res.data.parent_task_id || ''
+          parent_task_id: res.data.parent_task_id || '',
+          is_parent_task: res.data.is_parent_task || false
         });
         setLoading(false);
         // 프로젝트 멤버 목록 가져오기
@@ -95,18 +97,18 @@ export default function TaskDetailPage({
     }
   };
 
-  // 프로젝트 업무 목록 가져오기
+  // 프로젝트 업무 목록 가져오기 (상위업무만)
   const fetchProjectTasks = async (projectId) => {
     const token = localStorage.getItem('access_token');
     if (!token) return;
     
     try {
-      const res = await axios.get(`http://localhost:8005/api/v1/tasks?project_id=${projectId}`, {
+      const res = await axios.get(`http://localhost:8005/api/v1/parent-tasks?project_id=${projectId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setProjectTasks(res.data || []);
     } catch (err) {
-      console.error('프로젝트 업무 조회 실패:', err);
+      console.error('상위업무 목록 조회 실패:', err);
     }
   };
 
@@ -181,7 +183,8 @@ export default function TaskDetailPage({
       member_ids: task.member_ids || [],
       start_date: task.start_date ? task.start_date.slice(0, 10) : '',
       due_date: task.due_date ? task.due_date.slice(0, 10) : '',
-      parent_task_id: task.parent_task_id || ''
+      parent_task_id: task.parent_task_id || '',
+      is_parent_task: task.is_parent_task || false
     });
   };
 
@@ -195,7 +198,8 @@ export default function TaskDetailPage({
       member_ids: task.member_ids || [],
       start_date: task.start_date ? task.start_date.slice(0, 10) : '',
       due_date: task.due_date ? task.due_date.slice(0, 10) : '',
-      parent_task_id: task.parent_task_id || ''
+      parent_task_id: task.parent_task_id || '',
+      is_parent_task: task.is_parent_task || false
     });
   };
 
@@ -230,6 +234,9 @@ export default function TaskDetailPage({
       }
       if (parseInt(editForm.parent_task_id) !== task.parent_task_id || (!editForm.parent_task_id && task.parent_task_id)) {
         updateData.parent_task_id = editForm.parent_task_id ? parseInt(editForm.parent_task_id) : null;
+      }
+      if (editForm.is_parent_task !== task.is_parent_task) {
+        updateData.is_parent_task = editForm.is_parent_task;
       }
       
       // 멤버는 항상 업데이트 (배열 비교가 복잡하므로)
@@ -514,19 +521,24 @@ export default function TaskDetailPage({
                     ) : (
                       <div className="flex justify-between items-start">
                         <div>
+                          <div className="flex items-center space-x-2 mb-1">
+                            <span className="text-sm font-medium text-gray-700">{c.user_name || '알 수 없는 사용자'}</span>
+                            <span className="text-xs text-gray-500">{new Date(c.updated_at).toLocaleString()} {c.is_updated ? '(수정됨)' : ''}</span>
+                          </div>
                           <div className="text-sm text-gray-800">{c.content}</div>
-                          <div className="text-xs text-gray-500 mt-1">{new Date(c.updated_at).toLocaleString()} {c.is_updated ? '(수정됨)' : ''}</div>
                         </div>
-                        <div className="flex gap-2 ml-2">
-                          <button
-                            onClick={() => handleEditComment(c)}
-                            className="text-blue-500 hover:underline text-xs"
-                          >수정</button>
-                          <button
-                            onClick={() => handleDeleteComment(c.comment_id)}
-                            className="text-red-500 hover:underline text-xs"
-                          >삭제</button>
-                        </div>
+                        {currentUser && c.user_id === currentUser.user_id && (
+                          <div className="flex gap-2 ml-2">
+                            <button
+                              onClick={() => handleEditComment(c)}
+                              className="text-blue-500 hover:underline text-xs"
+                            >수정</button>
+                            <button
+                              onClick={() => handleDeleteComment(c.comment_id)}
+                              className="text-red-500 hover:underline text-xs"
+                            >삭제</button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </li>
@@ -623,22 +635,41 @@ export default function TaskDetailPage({
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">상위 업무</label>
-                  <select
-                    value={editForm.parent_task_id}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, parent_task_id: e.target.value }))}
-                    className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-indigo-400"
-                  >
-                    <option value="">상위 업무 없음</option>
-                    {projectTasks
-                      .filter(t => t.task_id !== task.task_id) // 자기 자신 제외
-                      .map(t => (
-                        <option key={t.task_id} value={t.task_id}>
-                          {t.title}
-                        </option>
-                      ))}
-                  </select>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">상위업무 설정</label>
+                  <label className="flex items-center mb-3">
+                    <input
+                      type="checkbox"
+                      checked={editForm.is_parent_task}
+                      onChange={(e) => setEditForm(prev => ({ 
+                        ...prev, 
+                        is_parent_task: e.target.checked,
+                        parent_task_id: e.target.checked ? '' : prev.parent_task_id // 상위업무로 설정하면 상위업무 선택 초기화
+                      }))}
+                      className="mr-2"
+                    />
+                    <span className="text-sm text-gray-700">이 업무를 상위업무로 설정</span>
+                  </label>
                 </div>
+                
+                {!editForm.is_parent_task && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">상위 업무</label>
+                    <select
+                      value={editForm.parent_task_id}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, parent_task_id: e.target.value }))}
+                      className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-indigo-400"
+                    >
+                      <option value="">상위 업무 없음</option>
+                      {projectTasks
+                        .filter(t => t.task_id !== task.task_id) // 자기 자신 제외
+                        .map(t => (
+                          <option key={t.task_id} value={t.task_id}>
+                            {t.title}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                )}
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-600 mb-1">업무 멤버</label>
@@ -675,6 +706,7 @@ export default function TaskDetailPage({
                 {[
                   ['담당자', task.assignee_name || '없음'],
                   ['상태', task.status || '없음'],
+                  ['업무 유형', task.is_parent_task ? '📋 상위업무' : '📝 일반업무'],
                   ['상위 업무', task.parent_task_id ? 
                     (task.parent_task_title ? `${task.parent_task_title}(${task.parent_task_id})` : `업무 ID: ${task.parent_task_id}`) 
                     : '없음'],

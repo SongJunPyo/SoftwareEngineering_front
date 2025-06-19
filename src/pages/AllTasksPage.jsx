@@ -15,6 +15,7 @@ function AllTasksPage() {
   // 2) State 훅들 (항상 같은 순서로 호출)
   const [tasks, setTasks] = useState([]);
   const [members, setMembers] = useState([]);
+  const [parentTasks, setParentTasks] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [openTaskId, setOpenTaskId] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
@@ -25,6 +26,7 @@ function AllTasksPage() {
     assignee: '',
     parentTask: '',
     priority: 'medium',
+    isParentTask: false,
   });
 
   // 3) currentOrg / currentProject 계산
@@ -94,6 +96,22 @@ function AllTasksPage() {
           navigate('/login');
         }
       });
+
+    // 7-3) 상위업무 목록 호출
+    axios
+      .get(`http://localhost:8005/api/v1/parent-tasks?project_id=${projectId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((res) => {
+        setParentTasks(res.data);
+      })
+      .catch((err) => {
+        console.error('상위업무 목록 로드 실패:', err);
+        if (err.response?.status === 401) {
+          localStorage.removeItem('access_token');
+          navigate('/login');
+        }
+      });
   }, [projectId, navigate, currentProject, taskUpdateTrigger]);
 
   // 6) 조기 리턴: 아직 프로젝트가 선택되지 않았거나 로딩 중이면
@@ -127,6 +145,7 @@ function AllTasksPage() {
       parent_task_id: parentTaskId,
       priority: form.priority,
       project_id: currentProject.projectId,
+      is_parent_task: form.isParentTask,
     };
 
     // 간단 유효성 검사
@@ -170,6 +189,7 @@ function AllTasksPage() {
         assignee: '',
         parentTask: '',
         priority: 'medium',
+        isParentTask: false,
       });
     } catch (err) {
       console.error('업무 생성 실패:', err);
@@ -381,26 +401,42 @@ function AllTasksPage() {
                 </div>
               </div>
 
-              {/* 상위 업무 선택 */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">상위 업무</label>
-                <select
-                  name="parentTask"
-                  value={form.parentTask}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
-                >
-                  <option value="">없음</option>
-                  {tasks.map(task => (
-                    <option
-                      key={task.task_id}
-                      value={task.task_id}
-                    >
-                      {task.title}
-                    </option>
-                  ))}
-                </select>
+              {/* 상위업무로 설정 체크박스 */}
+              <div className="mb-4">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    name="isParentTask"
+                    checked={form.isParentTask}
+                    onChange={(e) => setForm(prev => ({ ...prev, isParentTask: e.target.checked }))}
+                    className="mr-2"
+                  />
+                  <span className="text-sm font-medium text-gray-700">상위업무로 설정</span>
+                </label>
               </div>
+
+              {/* 상위 업무 선택 (상위업무가 아닌 경우에만 표시) */}
+              {!form.isParentTask && (
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">상위 업무</label>
+                  <select
+                    name="parentTask"
+                    value={form.parentTask}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+                  >
+                    <option value="">없음</option>
+                    {parentTasks.map(task => (
+                      <option
+                        key={task.task_id}
+                        value={task.task_id}
+                      >
+                        {task.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* 취소/저장 버튼 */}
               <div className="flex justify-end space-x-3">
@@ -480,8 +516,15 @@ function AllTasksPage() {
                     <td className="px-6 py-4">
                       <div className="flex items-center">
                         <div>
-                          <div className="text-sm font-semibold text-gray-900 hover:text-blue-600 transition-colors">
-                            {task.title}
+                          <div className="flex items-center space-x-2">
+                            <div className="text-sm font-semibold text-gray-900 hover:text-blue-600 transition-colors">
+                              {task.title}
+                            </div>
+                            {task.is_parent_task && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                                📋 상위업무
+                              </span>
+                            )}
                           </div>
                           {task.parent_task_id && (
                             <div className="text-xs text-gray-500 mt-1">
