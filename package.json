@@ -8,7 +8,10 @@
     "@fullcalendar/interaction": "^6.1.17",
     "@fullcalendar/react": "^6.1.17",
     "@fullcalendar/timegrid": "^6.1.17",
-    "@react-oauth/google": "^0.12.2",
+    "@react-oauth/google": "^0.12.1",
+    "@testing-library/jest-dom": "^5.17.0",
+    "@testing-library/react": "^13.4.0",
+    "@testing-library/user-event": "^13.5.0",
     "axios": "^1.9.0",
     "cra-template-pwa": "2.0.0",
     "figma-api": "^2.0.2-beta",
@@ -17,19 +20,18 @@
     "react-calendar": "^5.1.0",
     "react-dom": "^18.2.0",
     "react-icons": "^5.5.0",
-    "react-router-dom": "^6.22.3",
+    "react-router-dom": "^6.22.1",
     "react-scripts": "5.0.1",
-    "socket.io-client": "^4.7.2",
-    "styled-components": "^6.1.18",
-    "web-vitals": "^4.2.4"
+    "socket.io-client": "^4.8.1",
+    "styled-components": "^6.1.19",
+    "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "start": "react-scripts start",
+    "start": "set PORT=3000 && react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
-  "proxy": "http://localhost:8005",
   "eslintConfig": {
     "extends": [
       "react-app",

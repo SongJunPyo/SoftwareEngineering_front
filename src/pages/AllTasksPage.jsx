@@ -1,370 +1,3 @@
-// import React, { useContext, useState, useEffect } from 'react';
-// import axios from 'axios';
-// import { OrgProjectContext } from '../context/OrgProjectContext';
-// import { useNavigate } from 'react-router-dom';
-// import { Link } from 'react-router-dom';
-// import TaskDetailPage from './TaskDetailPage';
-// import Modal from '../components/Task_Modal';
-
-
-// function AllTasksPage() {
-//   // 1) Context 훅 (항상 최상단)
-//   const { organizations, selectedOrgIndex, selectedProjectIndex } =
-//     useContext(OrgProjectContext);
-//   const navigate = useNavigate();
-
-//   // 2) State 훅들 (항상 같은 순서로 호출)
-//   const [tasks, setTasks]         = useState([]);
-//   const [members, setMembers]     = useState([]);
-//   const [showModal, setShowModal] = useState(false);
-//   const [openTaskId, setOpenTaskId] = useState(null);
-//   const [form, setForm]           = useState({
-//     title: '',
-//     startDate: new Date().toISOString().slice(0, 10),
-//     dueDate: new Date().toISOString().slice(0, 10),
-//     assignee: '',
-//     parentTask: '',
-//     priority: 'medium',
-//   });
-
-//   // 3) currentOrg / currentProject 계산
-//   const currentOrg = organizations?.[selectedOrgIndex];
-//   const currentProject = currentOrg?.projects?.[selectedProjectIndex];
-//   // projectId를 컴포넌트 최상단에서 정의해 두면,
-//   // useEffect나 handleSubmit 안에서도 자유롭게 쓸 수 있습니다.
-//   const projectId = currentProject?.project_id ?? null;
-
-//   // 4) 프로젝트가 바뀔 때마다 Tasks, Members를 불러오기
-//   useEffect(() => {
-//     if (!currentProject) return;   // projectId가 null이면 아무것도 하지 않음
-
-//     const projectId = currentProject.projectId;  
-//     const token = localStorage.getItem('access_token');
-//     if (!token) {
-//       alert('로그인 후 이용하세요.');
-//       navigate('/login');
-//       return;
-//     }
-
-//     // 4-1) 작업 목록 호출
-//     axios
-//       .get(`http://localhost:8005/api/v1/tasks?project_id=${projectId}`, {
-//         headers: { Authorization: `Bearer ${token}` },
-//       })
-//       .then((res) => {
-//         setTasks(res.data);
-//       })
-//       .catch((err) => {
-//         console.error('작업 목록 로드 실패:', err);
-//         if (err.response?.status === 401) {
-//           localStorage.removeItem('access_token');
-//           navigate('/login');
-//         }
-//       });
-
-//     // 4-2) 프로젝트 멤버 목록 호출
-//     axios
-//       .get(`http://localhost:8005/api/v1/project_members?project_id=${projectId}`, {
-//         headers: { Authorization: `Bearer ${token}` },
-//       })
-//       .then((res) => {
-//         setMembers(res.data);
-//       })
-//       .catch((err) => {
-//         console.error('프로젝트 멤버 목록 로드 실패:', err);
-//         if (err.response?.status === 401) {
-//           localStorage.removeItem('access_token');
-//           navigate('/login');
-//         }
-//       });
-//   }, [projectId, navigate]); 
-//   // ESLint 경고를 없애려면, useEffect 의존성에 projectId와 navigate를 넣어야 합니다.
-
-//   // 5) 조기 리턴: 아직 프로젝트가 선택되지 않았거나 로딩 중이면
-//   if (!currentOrg || !currentProject) {
-//     return <div>프로젝트를 선택하거나, 로딩 중입니다…</div>;
-//   }
-
-//   // 6) 모달 열기/닫기 핸들러
-//   const handleOpenModal = () => setShowModal(true);
-//   const handleCloseModal = () => setShowModal(false);
-
-//   // 7) 폼 입력 변화 핸들러
-//   const handleChange = (e) => {
-//     const { name, value } = e.target;
-//     setForm(prev => ({ ...prev, [name]: value }));
-//   };
-
-//   // 8) 폼 제출 (업무 생성)
-//   const handleSubmit = async (e) => {
-//     e.preventDefault();
-
-//     // 숫자로 변환하거나 null 처리
-//     const assigneeId   = form.assignee ? Number(form.assignee) : null;
-//     const parentTaskId = form.parentTask ? Number(form.parentTask) : null;
-
-//     const payload = {
-//       title: form.title,
-//       start_date: form.startDate.length === 10 ? form.startDate + 'T00:00:00' : form.startDate,
-//       due_date: form.dueDate.length === 10 ? form.dueDate + 'T00:00:00' : form.dueDate,
-//       assignee_id: assigneeId,
-//       parent_task_id: parentTaskId,
-//       priority: form.priority,
-//       project_id: currentProject.projectId,  // <-- 여기서도 projectId를 사용
-//     };
-
-//     // 간단 유효성 검사
-//     if (!payload.title || !payload.start_date || !payload.due_date) {
-//       alert('업무명, 시작일, 마감일은 필수 입력 항목입니다.');
-//       return;
-//     }
-
-//     try {
-//       const token = localStorage.getItem('access_token');
-//       const res = await axios.post(
-//         'http://localhost:8005/api/v1/tasks',
-//         payload,
-//         {
-//           headers: { Authorization: `Bearer ${token}` }
-//         }
-//       );
-
-//       // 생성된 업무 객체를 받아와서 리스트에 추가
-//       setTasks(prev => [...prev, res.data]);
-//       handleCloseModal();
-
-//       // 폼 초기화
-//       setForm({
-//         title: '',
-//         startDate: new Date().toISOString().slice(0, 10),
-//         dueDate: new Date().toISOString().slice(0, 10),
-//         assignee: '',
-//         parentTask: '',
-//         priority: 'medium',
-//       });
-//     } catch (err) {
-//       console.error('업무 생성 실패:', err);
-//       alert(err.response?.data?.detail || '업무 생성 중 오류가 발생했습니다.');
-//       if (err.response?.status === 401) {
-//         localStorage.removeItem('access_token');
-//         navigate('/login');
-//       }
-//     }
-//   };
-
-//   const Modal = ({ children, onClose }) => (
-//     <div
-//       className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-//       onClick={onClose}
-//     >
-//       <div
-//         className="bg-white rounded-lg shadow-lg max-w-4xl w-full max-h-[90vh] overflow-auto p-6 relative"
-//         onClick={e => e.stopPropagation()}
-//       >
-//         <button
-//           onClick={onClose}
-//           className="absolute top-3 right-3 text-gray-500 hover:text-gray-700"
-//         >
-//           ✕
-//         </button>
-//         {children}
-//       </div>
-//     </div>
-//   );
-
-//   return (
-//     <div className="p-4">
-//       <div className="flex justify-between items-center mb-4">
-//         <h1 className="text-2xl font-semibold">All Tasks</h1>
-//         <button
-//           onClick={handleOpenModal}
-//           className="bg-blue-500 text-white px-4 py-2 rounded"
-//         >
-//           + 업무 추가
-//         </button>
-//       </div>
-
-//       {/* 모달 창 */}
-//       {showModal && (
-//         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-//           <div className="bg-white p-6 rounded shadow-lg w-full max-w-md">
-//             <h2 className="text-xl mb-4">업무 추가</h2>
-//             <form onSubmit={handleSubmit}>
-//               {/* 업무명 */}
-//               <div className="mb-2">
-//                 <label className="block">
-//                   업무명<span className="text-red-500">*</span>
-//                 </label>
-//                 <input
-//                   name="title"           // 반드시 "title"로 맞추기
-//                   value={form.title}
-//                   onChange={handleChange}
-//                   required
-//                   className="border w-full p-2 rounded"
-//                 />
-//               </div>
-
-//               {/* 시작일 */}
-//               <div className="mb-2">
-//                 <label>시작일</label>
-//                 <input
-//                   type="date"
-//                   name="startDate"
-//                   value={form.startDate}
-//                   onChange={handleChange}
-//                   className="border w-full p-2 rounded"
-//                 />
-//               </div>
-
-//               {/* 마감일 */}
-//               <div className="mb-2">
-//                 <label>마감일</label>
-//                 <input
-//                   type="date"
-//                   name="dueDate"
-//                   value={form.dueDate}
-//                   onChange={handleChange}
-//                   className="border w-full p-2 rounded"
-//                 />
-//               </div>
-
-//               {/* 담당자 선택 */}
-//               <div className="mb-2">
-//                 <label>담당자</label>
-//                 <select
-//                   name="assignee"
-//                   value={form.assignee}
-//                   onChange={handleChange}
-//                   className="border w-full p-2 rounded"
-//                 >
-//                   <option value="">없음</option>
-//                   {members.map(member => (
-//                     <option
-//                       key={member.user_id}        // 고유 key prop
-//                       value={member.user_id}      // 실제 user_id를 value로 사용
-//                     >
-//                       {member.name}
-//                     </option>
-//                   ))}
-//                 </select>
-//               </div>
-
-//               {/* 상위 업무 선택 */}
-//               <div className="mb-2">
-//                 <label>상위 업무</label>
-//                 <select
-//                   name="parentTask"
-//                   value={form.parentTask}
-//                   onChange={handleChange}
-//                   className="border w-full p-2 rounded"
-//                 >
-//                   <option value="">없음</option>
-//                   {tasks.map(task => (
-//                     <option
-//                       key={task.task_id}          // 고유 key prop
-//                       value={task.task_id}
-//                     >
-//                       {task.title}
-//                     </option>
-//                   ))}
-//                 </select>
-//               </div>
-
-//               {/* 우선순위 */}
-//               <div className="mb-4">
-//                 <label>우선순위</label>
-//                 <select
-//                   name="priority"
-//                   value={form.priority}
-//                   onChange={handleChange}
-//                   className="border w-full p-2 rounded"
-//                 >
-//                   <option value="low">low</option>
-//                   <option value="medium">medium</option>
-//                   <option value="high">high</option>
-//                 </select>
-//               </div>
-
-//               {/* 취소/저장 버튼 */}
-//               <div className="flex justify-end">
-//                 <button
-//                   type="button"
-//                   onClick={handleCloseModal}
-//                   className="mr-2 px-4 py-2"
-//                 >
-//                   취소
-//                 </button>
-//                 <button
-//                   type="submit"
-//                   className="bg-blue-500 text-white px-4 py-2 rounded"
-//                 >
-//                   저장
-//                 </button>
-//               </div>
-//             </form>
-//           </div>
-//         </div>
-//       )}
-
-//       {openTaskId && (
-//         <Modal onClose={handleCloseModal}> 
-//           <TaskDetailPage taskId={openTaskId} inner />
-//         </Modal>
-//       )}
-
-//       {/* 업무 리스트 */}
-//       <ul>
-//         {/* {tasks.map(task => (
-//           <li key={task.task_id} className="border-b py-2 hover:bg-gray-50">
-//             <Link to={`/tasks/${task.task_id}`} className="block">
-//               <strong className="text-blue-600">{task.title}</strong> &nbsp;
-//               {task.assignee_name ? (
-//                 <span className="text-gray-500">(담당자: {task.assignee_name})</span>
-//               ) : (
-//                 <span className="text-gray-500">(담당자: 없음)</span>
-//               )}
-//               <br />
-//               <small className="text-gray-400">
-//                 우선순위: {task.priority} | 시작: {task.start_date.slice(0, 10)} | 마감:{' '}
-//                 {task.due_date.slice(0, 10)}
-//               </small>
-//             </Link>
-//           </li>
-//         ))} */}
-        
-//         {tasks.map(task => (
-//           <li key={task.task_id} className="border-b py-2 hover:bg-gray-50">
-//             <button
-//               className="block text-left w-full"
-//               onClick={() => setOpenTaskId(task.task_id)}
-//             >
-//               <strong className="text-blue-600">{task.title}</strong>&nbsp;
-//               {task.assignee_name
-//                 ? <span className="text-gray-500">(담당자: {task.assignee_name})</span>
-//                 : <span className="text-gray-500">(담당자: 없음)</span>
-//               }
-//               <br/>
-//               <small className="text-gray-400">
-//                 우선순위: {task.priority} | 시작: {task.start_date.slice(0,10)} | 마감: {task.due_date.slice(0,10)}
-//               </small>
-//             </button>
-//           </li>
-//         ))}
-//       </ul>
-
-//       {/* 모달 */}
-//       {openTaskId && (
-//         <Modal onClose={() => setOpenTaskId(null)}>
-//           {/* inner prop으로 기존 레이아웃 충돌 최소화 */}
-//           <TaskDetailPage taskId={openTaskId} inner />
-//         </Modal>
-//       )}
-//     </div>
-//   );
-// }
-
-// export default AllTasksPage;
-
 import React, { useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 import { OrgProjectContext } from '../context/OrgProjectContext';
@@ -373,19 +6,19 @@ import { Link } from 'react-router-dom';
 import TaskDetailPage from './TaskDetailPage';
 import Modal from '../components/Task_Modal';
 
-
 function AllTasksPage() {
   // 1) Context 훅 (항상 최상단)
-  const { organizations, selectedOrgIndex, selectedProjectIndex } =
+  const { organizations, selectedOrgIndex, selectedProjectIndex, taskUpdateTrigger } =
     useContext(OrgProjectContext);
   const navigate = useNavigate();
 
   // 2) State 훅들 (항상 같은 순서로 호출)
-  const [tasks, setTasks]         = useState([]);
-  const [members, setMembers]     = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [members, setMembers] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [openTaskId, setOpenTaskId] = useState(null);
-  const [form, setForm]           = useState({
+  const [currentUser, setCurrentUser] = useState(null);
+  const [form, setForm] = useState({
     title: '',
     startDate: new Date().toISOString().slice(0, 10),
     dueDate: new Date().toISOString().slice(0, 10),
@@ -397,15 +30,32 @@ function AllTasksPage() {
   // 3) currentOrg / currentProject 계산
   const currentOrg = organizations?.[selectedOrgIndex];
   const currentProject = currentOrg?.projects?.[selectedProjectIndex];
-  // projectId를 컴포넌트 최상단에서 정의해 두면,
-  // useEffect나 handleSubmit 안에서도 자유롭게 쓸 수 있습니다.
-  const projectId = currentProject?.project_id ?? null;
+  const projectId = currentProject?.projectId ?? null;
 
-  // 4) 프로젝트가 바뀔 때마다 Tasks, Members를 불러오기
+  // 4) 현재 사용자 정보 가져오기
   useEffect(() => {
-    if (!currentProject) return;   // projectId가 null이면 아무것도 하지 않음
+    const fetchCurrentUser = async () => {
+      try {
+        const token = localStorage.getItem('access_token');
+        if (!token) return;
 
-    const projectId = currentProject.projectId;  
+        const response = await axios.get('http://localhost:8005/api/v1/auth/me', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setCurrentUser(response.data);
+      } catch (error) {
+        console.error('현재 사용자 정보 가져오기 실패:', error);
+      }
+    };
+
+    fetchCurrentUser();
+  }, []);
+
+
+  // 5) 프로젝트가 바뀔 때마다 Tasks, Members를 불러오기
+  useEffect(() => {
+    if (!currentProject || !projectId) return;
+
     const token = localStorage.getItem('access_token');
     if (!token) {
       alert('로그인 후 이용하세요.');
@@ -413,7 +63,7 @@ function AllTasksPage() {
       return;
     }
 
-    // 4-1) 작업 목록 호출
+    // 7-1) 작업 목록 호출
     axios
       .get(`http://localhost:8005/api/v1/tasks?project_id=${projectId}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -429,7 +79,7 @@ function AllTasksPage() {
         }
       });
 
-    // 4-2) 프로젝트 멤버 목록 호출
+    // 7-2) 프로젝트 멤버 목록 호출 (뷰어 제외)
     axios
       .get(`http://localhost:8005/api/v1/project_members?project_id=${projectId}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -444,34 +94,29 @@ function AllTasksPage() {
           navigate('/login');
         }
       });
-  }, [projectId, navigate]); 
-  // ESLint 경고를 없애려면, useEffect 의존성에 projectId와 navigate를 넣어야 합니다.
+  }, [projectId, navigate, currentProject, taskUpdateTrigger]);
 
-  // 5) 조기 리턴: 아직 프로젝트가 선택되지 않았거나 로딩 중이면
+  // 6) 조기 리턴: 아직 프로젝트가 선택되지 않았거나 로딩 중이면
   if (!currentOrg || !currentProject) {
     return <div>프로젝트를 선택하거나, 로딩 중입니다…</div>;
   }
 
-  // 6) 모달 열기/닫기 핸들러
+  // 7) 모달 열기/닫기 핸들러
   const handleOpenModal = () => setShowModal(true);
   const handleCloseModal = () => setShowModal(false);
 
-  // 7) 폼 입력 변화 핸들러
+  // 8) 폼 입력 변화 핸들러
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
   };
 
-  // 8) 폼 제출 (업무 생성)
+  // 9) 폼 제출 (업무 생성)
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     // 숫자로 변환하거나 null 처리
     const assigneeId = form.assignee ? Number(form.assignee) : null;
-    if (!assigneeId) {
-      alert('담당자를 선택하세요.');
-      return;
-    }
     const parentTaskId = form.parentTask ? Number(form.parentTask) : null;
 
     const payload = {
@@ -481,7 +126,7 @@ function AllTasksPage() {
       assignee_id: assigneeId,
       parent_task_id: parentTaskId,
       priority: form.priority,
-      project_id: currentProject.projectId,  // <-- 여기서도 projectId를 사용
+      project_id: currentProject.projectId,
     };
 
     // 간단 유효성 검사
@@ -492,6 +137,8 @@ function AllTasksPage() {
 
     try {
       const token = localStorage.getItem('access_token');
+      console.log('🚀 Task 생성 API 호출:', payload);
+      
       const res = await axios.post(
         'http://localhost:8005/api/v1/tasks',
         payload,
@@ -500,8 +147,19 @@ function AllTasksPage() {
         }
       );
 
-      // 생성된 업무 객체를 받아와서 리스트에 추가
-      setTasks(prev => [...prev, res.data]);
+      console.log('✅ Task 생성 API 응답:', res.data);
+      
+      // WebSocket 이벤트가 오지 않을 경우를 대비해 즉시 로컬 상태 업데이트
+      const newTask = res.data;
+      setTasks(prev => {
+        const exists = prev.some(task => task.task_id === newTask.task_id);
+        if (!exists) {
+          console.log('🔄 API 응답으로 Task 즉시 추가:', newTask.title);
+          return [...prev, newTask];
+        }
+        return prev;
+      });
+      
       handleCloseModal();
 
       // 폼 초기화
@@ -523,116 +181,219 @@ function AllTasksPage() {
     }
   };
 
-  const Modal = ({ children, onClose }) => (
-    <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white rounded-lg shadow-lg max-w-4xl w-full max-h-[90vh] overflow-auto p-6 relative"
-        onClick={e => e.stopPropagation()}
-      >
-        <button
-          onClick={onClose}
-          className="absolute top-3 right-3 text-gray-500 hover:text-gray-700"
-        >
-          ✕
-        </button>
-        {children}
-      </div>
-    </div>
-  );
+  // 10) Task 삭제 함수
+  const handleDeleteTask = async (taskId) => {
+    if (!window.confirm('정말로 이 업무를 삭제하시겠습니까?')) return;
+
+    try {
+      const token = localStorage.getItem('access_token');
+      await axios.delete(`http://localhost:8005/api/v1/tasks/${taskId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      // WebSocket 이벤트가 오지 않을 경우를 대비해 즉시 로컬 상태 업데이트
+      setTasks(prev => {
+        const filtered = prev.filter(task => task.task_id !== taskId);
+        console.log('🔄 API 응답으로 Task 즉시 삭제:', taskId);
+        return filtered;
+      });
+      
+    } catch (err) {
+      console.error('업무 삭제 실패:', err);
+      alert(err.response?.data?.detail || '업무 삭제 중 오류가 발생했습니다.');
+    }
+  };
+
+  // 11) 권한 체크 함수
+  const canModifyTask = (task) => {
+    return currentUser && task.assignee_id === currentUser.user_id;
+  };
 
   return (
-    <div className="p-4">
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-semibold">All Tasks</h1>
-        <button
-          onClick={handleOpenModal}
-          className="bg-blue-500 text-white px-4 py-2 rounded"
-        >
-          + 업무 추가
-        </button>
+    <div className="p-6 max-w-7xl mx-auto">
+      {/* 헤더 섹션 */}
+      <div className="mb-8">
+        <div className="flex justify-between items-center mb-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">All Tasks</h1>
+            <p className="text-gray-600 mt-1">프로젝트의 모든 업무를 관리하세요</p>
+          </div>
+          <button
+            onClick={handleOpenModal}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-200 flex items-center space-x-2 shadow-sm"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+            <span>업무 추가</span>
+          </button>
+        </div>
+        
+        {/* 통계 카드 */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+            <div className="flex items-center">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm text-gray-600">전체 업무</p>
+                <p className="text-2xl font-semibold text-gray-900">{tasks.length}</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+            <div className="flex items-center">
+              <div className="p-2 bg-yellow-100 rounded-lg">
+                <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm text-gray-600">진행중</p>
+                <p className="text-2xl font-semibold text-gray-900">{tasks.filter(t => t.status === 'In progress').length}</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+            <div className="flex items-center">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm text-gray-600">완료</p>
+                <p className="text-2xl font-semibold text-gray-900">{tasks.filter(t => t.status === 'complete').length}</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+            <div className="flex items-center">
+              <div className="p-2 bg-red-100 rounded-lg">
+                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm text-gray-600">높은 우선순위</p>
+                <p className="text-2xl font-semibold text-gray-900">{tasks.filter(t => t.priority === 'high').length}</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* 모달 창 */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white p-6 rounded shadow-lg w-full max-w-md">
-            <h2 className="text-xl mb-4">업무 추가</h2>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-xl shadow-xl w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold text-gray-900">새 업무 추가</h2>
+              <button
+                onClick={handleCloseModal}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
             <form onSubmit={handleSubmit}>
               {/* 업무명 */}
-              <div className="mb-2">
-                <label className="block">
-                  업무명<span className="text-red-500">*</span>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  업무명<span className="text-red-500 ml-1">*</span>
                 </label>
                 <input
-                  name="title"           // 반드시 "title"로 맞추기
+                  name="title"
                   value={form.title}
                   onChange={handleChange}
                   required
-                  className="border w-full p-2 rounded"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+                  placeholder="업무명을 입력하세요"
                 />
               </div>
 
-              {/* 시작일 */}
-              <div className="mb-2">
-                <label>시작일</label>
-                <input
-                  type="date"
-                  name="startDate"
-                  value={form.startDate}
-                  onChange={handleChange}
-                  className="border w-full p-2 rounded"
-                />
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                {/* 시작일 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">시작일</label>
+                  <input
+                    type="date"
+                    name="startDate"
+                    value={form.startDate}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+                  />
+                </div>
+
+                {/* 마감일 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">마감일</label>
+                  <input
+                    type="date"
+                    name="dueDate"
+                    value={form.dueDate}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+                  />
+                </div>
               </div>
 
-              {/* 마감일 */}
-              <div className="mb-2">
-                <label>마감일</label>
-                <input
-                  type="date"
-                  name="dueDate"
-                  value={form.dueDate}
-                  onChange={handleChange}
-                  className="border w-full p-2 rounded"
-                />
-              </div>
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                {/* 담당자 선택 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">담당자</label>
+                  <select
+                    name="assignee"
+                    value={form.assignee}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+                  >
+                    <option value="">미지정</option>
+                    {members.map(member => (
+                      <option
+                        key={member.user_id}
+                        value={member.user_id}
+                      >
+                        {member.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-              {/* 담당자 선택 */}
-              <div className="mb-2">
-                <label>담당자</label>
-                <select
-                  name="assignee"
-                  value={form.assignee}
-                  onChange={handleChange}
-                  className="border w-full p-2 rounded"
-                >
-                  <option value="">담당자 선택</option>
-                  {members.map(member => (
-                    <option
-                      key={member.user_id}        // 고유 key prop
-                      value={member.user_id}      // 실제 user_id를 value로 사용
-                    >
-                      {member.name}
-                    </option>
-                  ))}
-                </select>
+                {/* 우선순위 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">우선순위</label>
+                  <select
+                    name="priority"
+                    value={form.priority}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+                  >
+                    <option value="low">🟢 낮음</option>
+                    <option value="medium">🟡 보통</option>
+                    <option value="high">🔴 높음</option>
+                  </select>
+                </div>
               </div>
 
               {/* 상위 업무 선택 */}
-              <div className="mb-2">
-                <label>상위 업무</label>
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">상위 업무</label>
                 <select
                   name="parentTask"
                   value={form.parentTask}
                   onChange={handleChange}
-                  className="border w-full p-2 rounded"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
                 >
                   <option value="">없음</option>
                   {tasks.map(task => (
                     <option
-                      key={task.task_id}          // 고유 key prop
+                      key={task.task_id}
                       value={task.task_id}
                     >
                       {task.title}
@@ -641,35 +402,20 @@ function AllTasksPage() {
                 </select>
               </div>
 
-              {/* 우선순위 */}
-              <div className="mb-4">
-                <label>우선순위</label>
-                <select
-                  name="priority"
-                  value={form.priority}
-                  onChange={handleChange}
-                  className="border w-full p-2 rounded"
-                >
-                  <option value="low">low</option>
-                  <option value="medium">medium</option>
-                  <option value="high">high</option>
-                </select>
-              </div>
-
               {/* 취소/저장 버튼 */}
-              <div className="flex justify-end">
+              <div className="flex justify-end space-x-3">
                 <button
                   type="button"
                   onClick={handleCloseModal}
-                  className="mr-2 px-4 py-2"
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors font-medium"
                 >
                   취소
                 </button>
                 <button
                   type="submit"
-                  className="bg-blue-500 text-white px-4 py-2 rounded"
+                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
                 >
-                  저장
+                  업무 생성
                 </button>
               </div>
             </form>
@@ -677,57 +423,147 @@ function AllTasksPage() {
         </div>
       )}
 
-      {openTaskId && (
-        <Modal onClose={handleCloseModal}> 
-          <TaskDetailPage taskId={openTaskId} inner />
-        </Modal>
-      )}
-
-      {/* 업무 리스트 */}
-      <ul>
-        {/* {tasks.map(task => (
-          <li key={task.task_id} className="border-b py-2 hover:bg-gray-50">
-            <Link to={`/tasks/${task.task_id}`} className="block">
-              <strong className="text-blue-600">{task.title}</strong> &nbsp;
-              {task.assignee_name ? (
-                <span className="text-gray-500">(담당자: {task.assignee_name})</span>
+      {/* 업무 테이블 */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  업무명
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  담당자
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  상태
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  우선순위
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  기간
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  액션
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {tasks.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="px-6 py-12 text-center">
+                    <div className="text-gray-400">
+                      <svg className="mx-auto h-12 w-12 text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                      </svg>
+                      <p className="text-sm font-medium text-gray-500">아직 업무가 없습니다</p>
+                      <p className="text-sm text-gray-400">첫 번째 업무를 추가해보세요!</p>
+                    </div>
+                  </td>
+                </tr>
               ) : (
-                <span className="text-gray-500">(담당자: 없음)</span>
+                tasks.map((task) => (
+                  <tr 
+                    key={task.task_id} 
+                    className="hover:bg-gray-50 transition-colors duration-150 cursor-pointer"
+                    onClick={() => setOpenTaskId(task.task_id)}
+                  >
+                    <td className="px-6 py-4">
+                      <div className="flex items-center">
+                        <div>
+                          <div className="text-sm font-semibold text-gray-900 hover:text-blue-600 transition-colors">
+                            {task.title}
+                          </div>
+                          {task.parent_task_id && (
+                            <div className="text-xs text-gray-500 mt-1">
+                              📎 하위 업무
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center">
+                        {task.assignee_name ? (
+                          <div className="flex items-center space-x-2">
+                            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                              <span className="text-sm font-medium text-blue-600">
+                                {task.assignee_name.charAt(0)}
+                              </span>
+                            </div>
+                            <span className="text-sm text-gray-900">{task.assignee_name}</span>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-400">미지정</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                        task.status === 'complete' ? 'bg-green-100 text-green-800' :
+                        task.status === 'In progress' ? 'bg-blue-100 text-blue-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {task.status === 'complete' ? '✅ 완료' :
+                         task.status === 'In progress' ? '🔄 진행중' :
+                         '📋 대기'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                        task.priority === 'high' ? 'bg-red-100 text-red-800' :
+                        task.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-green-100 text-green-800'
+                      }`}>
+                        {task.priority === 'high' ? '🔴 높음' :
+                         task.priority === 'medium' ? '🟡 보통' :
+                         '🟢 낮음'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-gray-900">
+                        <div className="flex items-center space-x-1 text-xs text-gray-500">
+                          <span>📅</span>
+                          <span>{task.start_date?.slice(0, 10) || 'N/A'}</span>
+                          <span>→</span>
+                          <span>{task.due_date?.slice(0, 10) || 'N/A'}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center space-x-2" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => setOpenTaskId(task.task_id)}
+                          className="text-blue-600 hover:text-blue-900 text-sm font-medium hover:bg-blue-50 px-2 py-1 rounded transition-colors"
+                        >
+                          상세
+                        </button>
+                        {canModifyTask(task) && (
+                          <button
+                            onClick={() => handleDeleteTask(task.task_id)}
+                            className="text-red-600 hover:text-red-900 text-sm font-medium hover:bg-red-50 px-2 py-1 rounded transition-colors"
+                          >
+                            삭제
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
               )}
-              <br />
-              <small className="text-gray-400">
-                우선순위: {task.priority} | 시작: {task.start_date.slice(0, 10)} | 마감:{' '}
-                {task.due_date.slice(0, 10)}
-              </small>
-            </Link>
-          </li>
-        ))} */}
-        
-        {tasks.map(task => (
-          <li key={task.task_id} className="border-b py-2 hover:bg-gray-50">
-            <button
-              className="block text-left w-full"
-              onClick={() => setOpenTaskId(task.task_id)}
-            >
-              <strong className="text-blue-600">{task.title}</strong>&nbsp;
-              {task.assignee_name
-                ? <span className="text-gray-500">(담당자: {task.assignee_name})</span>
-                : <span className="text-gray-500">(담당자: 없음)</span>
-              }
-              <br/>
-              <small className="text-gray-400">
-                우선순위: {task.priority} | 시작: {task.start_date.slice(0,10)} | 마감: {task.due_date.slice(0,10)}
-              </small>
-            </button>
-          </li>
-        ))}
-      </ul>
+            </tbody>
+          </table>
+        </div>
+      </div>
 
-      {/* 모달 */}
+      {/* Task 상세 모달 */}
       {openTaskId && (
         <Modal onClose={() => setOpenTaskId(null)}>
-          {/* inner prop으로 기존 레이아웃 충돌 최소화 */}
-          <TaskDetailPage taskId={openTaskId} inner />
+          <TaskDetailPage
+            taskId={openTaskId}
+            onClose={() => setOpenTaskId(null)}
+          />
         </Modal>
       )}
     </div>

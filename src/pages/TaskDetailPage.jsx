@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import axios from 'axios';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { OrgProjectContext } from '../context/OrgProjectContext';
 
 export default function TaskDetailPage({
   inner,                // 모달 여부
@@ -9,6 +10,7 @@ export default function TaskDetailPage({
 }) {
   const params = useParams();
   const navigate = useNavigate();
+  const { triggerTaskUpdate } = useContext(OrgProjectContext);
 
   // URL 파라미터 vs. prop
   const taskId = propTaskId || params.taskId;
@@ -95,12 +97,18 @@ export default function TaskDetailPage({
       return;
     }
     try {
-      await axios.patch(
+      const patchResponse = await axios.patch(
         `http://localhost:8005/api/v1/tasks/${taskId}`,
         { description },
         { headers: { Authorization: `Bearer ${token}` } }
       );
+      
+      console.log('🔄 TaskDetailPage에서 Task 수정 완료:', patchResponse.data);
       alert('설명이 저장되었습니다.');
+      
+      // AllTasksPage 업데이트 트리거
+      triggerTaskUpdate();
+      
       setLoading(true);
       const res = await axios.get(
         `http://localhost:8005/api/v1/tasks/${taskId}`,

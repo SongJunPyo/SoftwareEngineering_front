@@ -259,7 +259,7 @@ function LoginPage({ onLogin }) {
         password: password
       });
 
-      if (response.data?.access_token) {
+      if (response.data?.access_token) { // 토큰이 있으면 로그인 성공 함수 호출
         handleLoginSuccess(response.data);
       } else {
         throw new Error('서버에서 올바른 로그인 정보를 받지 못했습니다.');
