@@ -30,9 +30,14 @@ export default function TaskDetailPage({
     title: '',
     assignee_id: '',
     status: '',
-    member_ids: []
+    member_ids: [],
+    start_date: '',
+    due_date: '',
+    parent_task_id: ''
   });
   const [projectMembers, setProjectMembers] = useState([]);
+  const [projectTasks, setProjectTasks] = useState([]);
+  const [currentUser, setCurrentUser] = useState(null);
 
   // 상세 조회
   useEffect(() => {
@@ -55,11 +60,18 @@ export default function TaskDetailPage({
           title: res.data.title || '',
           assignee_id: res.data.assignee_id || '',
           status: res.data.status || '',
-          member_ids: res.data.member_ids || []
+          member_ids: res.data.member_ids || [],
+          start_date: res.data.start_date ? res.data.start_date.slice(0, 10) : '',
+          due_date: res.data.due_date ? res.data.due_date.slice(0, 10) : '',
+          parent_task_id: res.data.parent_task_id || ''
         });
         setLoading(false);
         // 프로젝트 멤버 목록 가져오기
         fetchProjectMembers(res.data.project_id);
+        // 프로젝트 업무 목록 가져오기 (상위 업무 선택용)
+        fetchProjectTasks(res.data.project_id);
+        // 현재 사용자 정보 가져오기
+        fetchCurrentUser();
       })
       .catch((err) => {
         console.error('Task 상세 조회 실패:', err);
@@ -80,6 +92,43 @@ export default function TaskDetailPage({
       setProjectMembers(res.data.members || []);
     } catch (err) {
       console.error('프로젝트 멤버 조회 실패:', err);
+    }
+  };
+
+  // 프로젝트 업무 목록 가져오기
+  const fetchProjectTasks = async (projectId) => {
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+    
+    try {
+      const res = await axios.get(`http://localhost:8005/api/v1/tasks?project_id=${projectId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setProjectTasks(res.data || []);
+    } catch (err) {
+      console.error('프로젝트 업무 조회 실패:', err);
+    }
+  };
+
+  // 현재 사용자 정보 가져오기
+  const fetchCurrentUser = async () => {
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+    
+    try {
+      // JWT 토큰에서 user_id 추출
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      setCurrentUser({ user_id: parseInt(payload.sub) });
+    } catch (err) {
+      console.error('토큰에서 사용자 정보 추출 실패:', err);
+      try {
+        const res = await axios.get('http://localhost:8005/api/v1/auth/me', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setCurrentUser(res.data);
+      } catch (apiErr) {
+        console.error('현재 사용자 정보 조회 실패:', apiErr);
+      }
     }
   };
 
@@ -129,7 +178,10 @@ export default function TaskDetailPage({
       title: task.title || '',
       assignee_id: task.assignee_id || '',
       status: task.status || '',
-      member_ids: task.member_ids || []
+      member_ids: task.member_ids || [],
+      start_date: task.start_date ? task.start_date.slice(0, 10) : '',
+      due_date: task.due_date ? task.due_date.slice(0, 10) : '',
+      parent_task_id: task.parent_task_id || ''
     });
   };
 
@@ -140,7 +192,10 @@ export default function TaskDetailPage({
       title: task.title || '',
       assignee_id: task.assignee_id || '',
       status: task.status || '',
-      member_ids: task.member_ids || []
+      member_ids: task.member_ids || [],
+      start_date: task.start_date ? task.start_date.slice(0, 10) : '',
+      due_date: task.due_date ? task.due_date.slice(0, 10) : '',
+      parent_task_id: task.parent_task_id || ''
     });
   };
 
@@ -155,12 +210,30 @@ export default function TaskDetailPage({
     }
     
     try {
-      const updateData = {
-        title: editForm.title,
-        assignee_id: parseInt(editForm.assignee_id),
-        status: editForm.status,
-        member_ids: editForm.member_ids.map(id => parseInt(id))
-      };
+      const updateData = {};
+      
+      // 변경된 필드만 포함
+      if (editForm.title !== task.title) {
+        updateData.title = editForm.title;
+      }
+      if (parseInt(editForm.assignee_id) !== task.assignee_id) {
+        updateData.assignee_id = parseInt(editForm.assignee_id);
+      }
+      if (editForm.status !== task.status) {
+        updateData.status = editForm.status;
+      }
+      if (editForm.start_date && editForm.start_date !== task.start_date?.slice(0, 10)) {
+        updateData.start_date = editForm.start_date + 'T00:00:00.000Z';
+      }
+      if (editForm.due_date && editForm.due_date !== task.due_date?.slice(0, 10)) {
+        updateData.due_date = editForm.due_date + 'T00:00:00.000Z';
+      }
+      if (parseInt(editForm.parent_task_id) !== task.parent_task_id || (!editForm.parent_task_id && task.parent_task_id)) {
+        updateData.parent_task_id = editForm.parent_task_id ? parseInt(editForm.parent_task_id) : null;
+      }
+      
+      // 멤버는 항상 업데이트 (배열 비교가 복잡하므로)
+      updateData.member_ids = editForm.member_ids.map(id => parseInt(id));
       
       const patchResponse = await axios.patch(
         `http://localhost:8005/api/v1/tasks/${taskId}`,
@@ -186,7 +259,10 @@ export default function TaskDetailPage({
         title: res.data.title || '',
         assignee_id: res.data.assignee_id || '',
         status: res.data.status || '',
-        member_ids: res.data.member_ids || []
+        member_ids: res.data.member_ids || [],
+        start_date: res.data.start_date ? res.data.start_date.slice(0, 10) : '',
+        due_date: res.data.due_date ? res.data.due_date.slice(0, 10) : '',
+        parent_task_id: res.data.parent_task_id || ''
       });
       setIsEditing(false);
       setLoading(false);
@@ -466,12 +542,16 @@ export default function TaskDetailPage({
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-bold">상세 정보</h2>
               {!isEditing ? (
-                <button
-                  onClick={handleEditStart}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded text-sm"
-                >
-                  편집
-                </button>
+                currentUser && task && currentUser.user_id === task.assignee_id ? (
+                  <button
+                    onClick={handleEditStart}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded text-sm"
+                  >
+                    편집
+                  </button>
+                ) : (
+                  <span className="text-gray-500 text-sm">담당자만 편집 가능</span>
+                )
               ) : (
                 <div className="space-x-2">
                   <button
@@ -519,6 +599,44 @@ export default function TaskDetailPage({
                     <option value="todo">할 일</option>
                     <option value="In progress">진행 중</option>
                     <option value="complete">완료</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">시작일</label>
+                  <input
+                    type="date"
+                    value={editForm.start_date}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, start_date: e.target.value }))}
+                    className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-indigo-400"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">마감일</label>
+                  <input
+                    type="date"
+                    value={editForm.due_date}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, due_date: e.target.value }))}
+                    className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-indigo-400"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">상위 업무</label>
+                  <select
+                    value={editForm.parent_task_id}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, parent_task_id: e.target.value }))}
+                    className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-indigo-400"
+                  >
+                    <option value="">상위 업무 없음</option>
+                    {projectTasks
+                      .filter(t => t.task_id !== task.task_id) // 자기 자신 제외
+                      .map(t => (
+                        <option key={t.task_id} value={t.task_id}>
+                          {t.title}
+                        </option>
+                      ))}
                   </select>
                 </div>
                 
