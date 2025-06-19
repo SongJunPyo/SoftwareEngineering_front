@@ -154,6 +154,20 @@ function AllTasksPage() {
       return;
     }
 
+    // 담당자 필수 검증
+    if (!payload.assignee_id) {
+      alert('담당자를 지정해주세요.');
+      return;
+    }
+
+    // 날짜 유효성 검증
+    const startDate = new Date(payload.start_date);
+    const dueDate = new Date(payload.due_date);
+    if (startDate > dueDate) {
+      alert('시작일은 마감일보다 늦을 수 없습니다.');
+      return;
+    }
+
     try {
       const token = localStorage.getItem('access_token');
       console.log('🚀 Task 생성 API 호출:', payload);
@@ -340,24 +354,30 @@ function AllTasksPage() {
               <div className="grid grid-cols-2 gap-4 mb-4">
                 {/* 시작일 */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">시작일</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    시작일<span className="text-red-500 ml-1">*</span>
+                  </label>
                   <input
                     type="date"
                     name="startDate"
                     value={form.startDate}
                     onChange={handleChange}
+                    required
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
                   />
                 </div>
 
                 {/* 마감일 */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">마감일</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    마감일<span className="text-red-500 ml-1">*</span>
+                  </label>
                   <input
                     type="date"
                     name="dueDate"
                     value={form.dueDate}
                     onChange={handleChange}
+                    required
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
                   />
                 </div>
@@ -366,14 +386,17 @@ function AllTasksPage() {
               <div className="grid grid-cols-2 gap-4 mb-4">
                 {/* 담당자 선택 */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">담당자</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    담당자<span className="text-red-500 ml-1">*</span>
+                  </label>
                   <select
                     name="assignee"
                     value={form.assignee}
                     onChange={handleChange}
+                    required
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
                   >
-                    <option value="">미지정</option>
+                    <option value="">담당자를 선택하세요</option>
                     {members.map(member => (
                       <option
                         key={member.user_id}

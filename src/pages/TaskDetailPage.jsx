@@ -77,7 +77,7 @@ export default function TaskDetailPage({
       })
       .catch((err) => {
         console.error('Task 상세 조회 실패:', err);
-        setError(err.response?.data?.detail || '불러오는 중 오류가 발생했습니다.');
+        setError(err.response?.data?.detail || '업무 정보를 불러오는 중 오류가 발생했습니다.');
         setLoading(false);
       });
   }, [taskId, navigate]);
@@ -167,7 +167,7 @@ export default function TaskDetailPage({
       setNewComment('');
       fetchComments();
     } catch (err) {
-      alert('댓글 등록 실패');
+      alert('댓글 등록에 실패했습니다.');
     }
   };
 
@@ -275,7 +275,7 @@ export default function TaskDetailPage({
       setLoading(false);
     } catch (err) {
       console.error('저장 실패:', err);
-      alert(err.response?.data?.detail || '저장 중 오류가 발생했습니다.');
+      alert(err.response?.data?.detail || '업무 정보 저장 중 오류가 발생했습니다.');
     }
   };
 
@@ -310,7 +310,7 @@ export default function TaskDetailPage({
       setLoading(false);
     } catch (err) {
       console.error('저장 실패:', err);
-      alert(err.response?.data?.detail || '저장 중 오류가 발생했습니다.');
+      alert(err.response?.data?.detail || '업무 정보 저장 중 오류가 발생했습니다.');
     }
   };
 
@@ -342,7 +342,7 @@ export default function TaskDetailPage({
       setEditingContent('');
       fetchComments();
     } catch (err) {
-      alert('댓글 수정 실패');
+      alert('댓글 수정에 실패했습니다.');
     }
   };
   // 댓글 삭제
@@ -360,7 +360,7 @@ export default function TaskDetailPage({
       });
       fetchComments();
     } catch (err) {
-      alert('댓글 삭제 실패');
+      alert('댓글 삭제에 실패했습니다.');
     }
   };
 
