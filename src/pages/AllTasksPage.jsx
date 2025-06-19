@@ -22,6 +22,7 @@ function AllTasksPage() {
   const [showTagModal, setShowTagModal] = useState(false);
   const [openTaskId, setOpenTaskId] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
+  const [currentUserRole, setCurrentUserRole] = useState(null);
   
   // 정렬 및 필터링 상태
   const [sortBy, setSortBy] = useState('task_id'); // ID, updated_at, start_date, due_date
@@ -101,6 +102,13 @@ function AllTasksPage() {
       })
       .then((res) => {
         setMembers(res.data);
+        // 현재 사용자의 역할 찾기
+        if (currentUser) {
+          const currentMember = res.data.find(member => member.user_id === currentUser.user_id);
+          if (currentMember) {
+            setCurrentUserRole(currentMember.role);
+          }
+        }
       })
       .catch((err) => {
         console.error('프로젝트 멤버 목록 로드 실패:', err);
@@ -368,24 +376,40 @@ function AllTasksPage() {
             <p className="text-gray-600 mt-1">프로젝트의 모든 업무를 관리하세요</p>
           </div>
           <div className="flex space-x-3">
-            <button
-              onClick={() => setShowTagModal(true)}
-              className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-200 flex items-center space-x-2 shadow-sm"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-              </svg>
-              <span>태그 관리</span>
-            </button>
-            <button
-              onClick={handleOpenModal}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-200 flex items-center space-x-2 shadow-sm"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              <span>업무 추가</span>
-            </button>
+            {/* 뷰어가 아닌 경우에만 태그 관리 버튼 표시 */}
+            {currentUserRole !== 'viewer' && (
+              <button
+                onClick={() => setShowTagModal(true)}
+                className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-200 flex items-center space-x-2 shadow-sm"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                </svg>
+                <span>태그 관리</span>
+              </button>
+            )}
+            {/* 뷰어가 아닌 경우에만 업무 추가 버튼 표시 */}
+            {currentUserRole !== 'viewer' && (
+              <button
+                onClick={handleOpenModal}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-200 flex items-center space-x-2 shadow-sm"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                <span>업무 추가</span>
+              </button>
+            )}
+            {/* 뷰어인 경우 안내 메시지 표시 */}
+            {currentUserRole === 'viewer' && (
+              <div className="text-gray-500 text-sm flex items-center px-4 py-3">
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                뷰어 권한으로 조회만 가능합니다
+              </div>
+            )}
           </div>
         </div>
         

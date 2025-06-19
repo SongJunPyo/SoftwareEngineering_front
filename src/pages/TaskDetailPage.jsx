@@ -41,6 +41,7 @@ export default function TaskDetailPage({
   const [projectTasks, setProjectTasks] = useState([]);
   const [projectTags, setProjectTags] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
+  const [currentUserRole, setCurrentUserRole] = useState(null);
 
   // 상세 조회
   useEffect(() => {
@@ -97,6 +98,14 @@ export default function TaskDetailPage({
         headers: { Authorization: `Bearer ${token}` },
       });
       setProjectMembers(res.data.members || []);
+      
+      // 현재 사용자의 역할 찾기
+      if (currentUser) {
+        const currentMember = res.data.members.find(member => member.user_id === currentUser.user_id);
+        if (currentMember) {
+          setCurrentUserRole(currentMember.role);
+        }
+      }
     } catch (err) {
       console.error('프로젝트 멤버 조회 실패:', err);
     }
@@ -167,6 +176,16 @@ export default function TaskDetailPage({
   useEffect(() => {
     if (taskId) fetchComments();
   }, [taskId]);
+
+  // 현재 사용자 역할 업데이트
+  useEffect(() => {
+    if (currentUser && projectMembers.length > 0) {
+      const currentMember = projectMembers.find(member => member.user_id === currentUser.user_id);
+      if (currentMember) {
+        setCurrentUserRole(currentMember.role);
+      }
+    }
+  }, [currentUser, projectMembers]);
 
   // 댓글 등록
   const handleAddComment = async () => {
@@ -483,38 +502,53 @@ export default function TaskDetailPage({
             </label>
             <textarea
               id="description"
-              className="w-full h-60 border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-indigo-400 resize-none bg-gray-50"
+              className={`w-full h-60 border border-gray-300 rounded-md p-3 focus:ring-2 focus:ring-indigo-400 resize-none ${currentUserRole === 'viewer' ? 'bg-gray-100' : 'bg-gray-50'}`}
               value={description}
               onChange={handleDescriptionChange}
-              placeholder="업무에 대한 상세 설명을 입력하세요."
+              placeholder={currentUserRole === 'viewer' ? '뷰어는 설명을 편집할 수 없습니다.' : '업무에 대한 상세 설명을 입력하세요.'}
+              readOnly={currentUserRole === 'viewer'}
             />
           </div>
-          <div className="mt-4 text-right">
-            <button
-              onClick={handleSave}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg shadow-md transition"
-            >
-              설명 저장
-            </button>
-          </div>
+          {currentUserRole !== 'viewer' && (
+            <div className="mt-4 text-right">
+              <button
+                onClick={handleSave}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg shadow-md transition"
+              >
+                설명 저장
+              </button>
+            </div>
+          )}
           {/* 댓글 작성 및 목록 */}
           <div className="mt-8">
             <h3 className="text-lg font-bold mb-2">댓글</h3>
-            <div className="flex items-center mb-2">
-              <textarea
-                className="flex-1 border border-gray-300 rounded-md p-2 mr-2"
-                rows={2}
-                value={newComment}
-                onChange={e => setNewComment(e.target.value)}
-                placeholder="댓글을 입력하세요."
-              />
-              <button
-                onClick={handleAddComment}
-                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md"
-              >
-                댓글 등록
-              </button>
-            </div>
+            {currentUserRole !== 'viewer' ? (
+              <div className="flex items-center mb-2">
+                <textarea
+                  className="flex-1 border border-gray-300 rounded-md p-2 mr-2"
+                  rows={2}
+                  value={newComment}
+                  onChange={e => setNewComment(e.target.value)}
+                  placeholder="댓글을 입력하세요."
+                />
+                <button
+                  onClick={handleAddComment}
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md"
+                >
+                  댓글 등록
+                </button>
+              </div>
+            ) : (
+              <div className="mb-2 p-3 bg-gray-50 rounded-md border">
+                <p className="text-sm text-gray-600 flex items-center">
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                  뷰어는 댓글을 작성할 수 없습니다.
+                </p>
+              </div>
+            )}
             <ul className="space-y-2 mt-4">
               {comments.length === 0 ? (
                 <li className="text-gray-400">아직 댓글이 없습니다.</li>
@@ -553,7 +587,7 @@ export default function TaskDetailPage({
                           </div>
                           <div className="text-sm text-gray-800">{c.content}</div>
                         </div>
-                        {currentUser && c.user_id === currentUser.user_id && (
+                        {currentUser && c.user_id === currentUser.user_id && currentUserRole !== 'viewer' && (
                           <div className="flex gap-2 ml-2">
                             <button
                               onClick={() => handleEditComment(c)}
@@ -580,7 +614,7 @@ export default function TaskDetailPage({
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-bold">상세 정보</h2>
               {!isEditing ? (
-                currentUser && task && currentUser.user_id === task.assignee_id ? (
+                currentUser && task && currentUser.user_id === task.assignee_id && currentUserRole !== 'viewer' ? (
                   <button
                     onClick={handleEditStart}
                     className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded text-sm"
@@ -588,7 +622,9 @@ export default function TaskDetailPage({
                     편집
                   </button>
                 ) : (
-                  <span className="text-gray-500 text-sm">담당자만 편집 가능</span>
+                  <span className="text-gray-500 text-sm">
+                    {currentUserRole === 'viewer' ? '뷰어는 편집할 수 없습니다' : '담당자만 편집 가능'}
+                  </span>
                 )
               ) : (
                 <div className="space-x-2">
