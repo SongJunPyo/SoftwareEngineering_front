@@ -23,6 +23,16 @@ export default function TaskDetailPage({
   const [newComment, setNewComment] = useState('');
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editingContent, setEditingContent] = useState('');
+  
+  // 편집 모드 상태
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({
+    title: '',
+    assignee_id: '',
+    status: '',
+    member_ids: []
+  });
+  const [projectMembers, setProjectMembers] = useState([]);
 
   // 상세 조회
   useEffect(() => {
@@ -40,7 +50,16 @@ export default function TaskDetailPage({
       .then((res) => {
         setTask(res.data);
         setDescription(res.data.description || '');
+        // 편집 폼 초기화
+        setEditForm({
+          title: res.data.title || '',
+          assignee_id: res.data.assignee_id || '',
+          status: res.data.status || '',
+          member_ids: res.data.member_ids || []
+        });
         setLoading(false);
+        // 프로젝트 멤버 목록 가져오기
+        fetchProjectMembers(res.data.project_id);
       })
       .catch((err) => {
         console.error('Task 상세 조회 실패:', err);
@@ -48,6 +67,21 @@ export default function TaskDetailPage({
         setLoading(false);
       });
   }, [taskId, navigate]);
+
+  // 프로젝트 멤버 목록 가져오기
+  const fetchProjectMembers = async (projectId) => {
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+    
+    try {
+      const res = await axios.get(`http://localhost:8005/api/v1/projects/${projectId}/members`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setProjectMembers(res.data.members || []);
+    } catch (err) {
+      console.error('프로젝트 멤버 조회 실패:', err);
+    }
+  };
 
   // 댓글 목록 불러오기
   const fetchComments = async () => {
@@ -87,6 +121,80 @@ export default function TaskDetailPage({
   };
 
   const handleDescriptionChange = (e) => setDescription(e.target.value);
+
+  // 편집 모드 시작
+  const handleEditStart = () => {
+    setIsEditing(true);
+    setEditForm({
+      title: task.title || '',
+      assignee_id: task.assignee_id || '',
+      status: task.status || '',
+      member_ids: task.member_ids || []
+    });
+  };
+
+  // 편집 모드 취소
+  const handleEditCancel = () => {
+    setIsEditing(false);
+    setEditForm({
+      title: task.title || '',
+      assignee_id: task.assignee_id || '',
+      status: task.status || '',
+      member_ids: task.member_ids || []
+    });
+  };
+
+  // 편집 내용 저장
+  const handleEditSave = async () => {
+    if (!task) return;
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      alert('로그인 후 이용해주세요.');
+      navigate('/login');
+      return;
+    }
+    
+    try {
+      const updateData = {
+        title: editForm.title,
+        assignee_id: parseInt(editForm.assignee_id),
+        status: editForm.status,
+        member_ids: editForm.member_ids.map(id => parseInt(id))
+      };
+      
+      const patchResponse = await axios.patch(
+        `http://localhost:8005/api/v1/tasks/${taskId}`,
+        updateData,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      console.log('🔄 Task 수정 완료:', patchResponse.data);
+      alert('업무 정보가 저장되었습니다.');
+      
+      // AllTasksPage 업데이트 트리거
+      triggerTaskUpdate();
+      
+      // 페이지 데이터 재로드
+      setLoading(true);
+      const res = await axios.get(
+        `http://localhost:8005/api/v1/tasks/${taskId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setTask(res.data);
+      setDescription(res.data.description || '');
+      setEditForm({
+        title: res.data.title || '',
+        assignee_id: res.data.assignee_id || '',
+        status: res.data.status || '',
+        member_ids: res.data.member_ids || []
+      });
+      setIsEditing(false);
+      setLoading(false);
+    } catch (err) {
+      console.error('저장 실패:', err);
+      alert(err.response?.data?.detail || '저장 중 오류가 발생했습니다.');
+    }
+  };
 
   const handleSave = async () => {
     if (!task) return;
@@ -222,7 +330,17 @@ export default function TaskDetailPage({
       <div className="flex space-x-8">
         {/* 좌측: 제목 + 설명 */}
         <div className="w-2/3 bg-gradient-to-br from-indigo-50 to-white rounded-lg shadow-lg p-6 border-t-4 border-indigo-500">
-          <h1 className="text-4xl font-extrabold mb-4 text-gray-800">{task.title}</h1>
+          {isEditing ? (
+            <input
+              type="text"
+              value={editForm.title}
+              onChange={(e) => setEditForm(prev => ({ ...prev, title: e.target.value }))}
+              className="text-4xl font-extrabold mb-4 text-gray-800 bg-transparent border-b-2 border-indigo-500 focus:outline-none w-full"
+              placeholder="업무명을 입력하세요"
+            />
+          ) : (
+            <h1 className="text-4xl font-extrabold mb-4 text-gray-800">{task.title}</h1>
+          )}
           <div className="flex flex-wrap items-center space-x-3 mb-6">
             {/* Status Badge */}
             <span
@@ -345,21 +463,129 @@ export default function TaskDetailPage({
         {/* 우측: 상세 정보 패널 */}
         <div className="w-1/3">
           <div className="bg-white rounded-lg shadow-lg p-6 space-y-6 border-l-4 border-indigo-300">
-            <h2 className="text-xl font-bold mb-2">상세 정보</h2>
-            {/* 담당자, 상위 업무, 시작일, 마감일, 생성일, 수정일 */}
-            {[
-              ['담당자', task.assignee_name || '없음'],
-              ['상위 업무 ID', task.parent_task_id || '없음'],
-              ['시작일', task.start_date.slice(0, 10)],
-              ['마감일', task.due_date.slice(0, 10)],
-              ['생성일', task.created_at?.slice(0, 10) || 'N/A'],
-              ['수정일', task.updated_at?.slice(0, 10) || 'N/A'],
-            ].map(([label, value]) => (
-                <div key={label} className="flex justify-between items-center">
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-bold">상세 정보</h2>
+              {!isEditing ? (
+                <button
+                  onClick={handleEditStart}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded text-sm"
+                >
+                  편집
+                </button>
+              ) : (
+                <div className="space-x-2">
+                  <button
+                    onClick={handleEditSave}
+                    className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm"
+                  >
+                    저장
+                  </button>
+                  <button
+                    onClick={handleEditCancel}
+                    className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm"
+                  >
+                    취소
+                  </button>
+                </div>
+              )}
+            </div>
+            
+            {isEditing ? (
+              /* 편집 모드 */
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">담당자</label>
+                  <select
+                    value={editForm.assignee_id}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, assignee_id: e.target.value }))}
+                    className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-indigo-400"
+                  >
+                    <option value="">담당자 선택</option>
+                    {projectMembers.map(member => (
+                      <option key={member.user_id} value={member.user_id}>
+                        {member.name} ({member.email})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">상태</label>
+                  <select
+                    value={editForm.status}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, status: e.target.value }))}
+                    className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-indigo-400"
+                  >
+                    <option value="todo">할 일</option>
+                    <option value="In progress">진행 중</option>
+                    <option value="complete">완료</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">업무 멤버</label>
+                  <div className="space-y-2 max-h-32 overflow-y-auto">
+                    {projectMembers.map(member => (
+                      <label key={member.user_id} className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={editForm.member_ids.includes(member.user_id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setEditForm(prev => ({
+                                ...prev,
+                                member_ids: [...prev.member_ids, member.user_id]
+                              }));
+                            } else {
+                              setEditForm(prev => ({
+                                ...prev,
+                                member_ids: prev.member_ids.filter(id => id !== member.user_id)
+                              }));
+                            }
+                          }}
+                          className="mr-2"
+                        />
+                        <span className="text-sm">{member.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* 보기 모드 */
+              <div className="space-y-4">
+                {[
+                  ['담당자', task.assignee_name || '없음'],
+                  ['상태', task.status || '없음'],
+                  ['상위 업무 ID', task.parent_task_id || '없음'],
+                  ['시작일', task.start_date?.slice(0, 10) || 'N/A'],
+                  ['마감일', task.due_date?.slice(0, 10) || 'N/A'],
+                  ['생성일', task.created_at?.slice(0, 10) || 'N/A'],
+                  ['수정일', task.updated_at?.slice(0, 10) || 'N/A'],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex justify-between items-center">
                     <span className="text-sm font-medium text-gray-600">{label}</span>
                     <span className="text-sm text-gray-800">{value}</span>
-                </div>
-            ))}
+                  </div>
+                ))}
+                
+                {task.member_ids && task.member_ids.length > 0 && (
+                  <div>
+                    <span className="text-sm font-medium text-gray-600">업무 멤버</span>
+                    <div className="mt-1 space-y-1">
+                      {task.member_ids.map(memberId => {
+                        const member = projectMembers.find(m => m.user_id === memberId);
+                        return member ? (
+                          <div key={memberId} className="text-sm text-gray-800">
+                            {member.name}
+                          </div>
+                        ) : null;
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
