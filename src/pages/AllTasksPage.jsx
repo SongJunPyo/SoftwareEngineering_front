@@ -22,6 +22,15 @@ function AllTasksPage() {
   const [showTagModal, setShowTagModal] = useState(false);
   const [openTaskId, setOpenTaskId] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
+  
+  // 정렬 및 필터링 상태
+  const [sortBy, setSortBy] = useState('task_id'); // ID, updated_at, start_date, due_date
+  const [sortOrder, setSortOrder] = useState('desc'); // asc, desc
+  const [filterAssignee, setFilterAssignee] = useState('');
+  const [filterTag, setFilterTag] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterPriority, setFilterPriority] = useState('');
+  const [filterTaskType, setFilterTaskType] = useState(''); // parent, sub, none
   const [form, setForm] = useState({
     title: '',
     startDate: new Date().toISOString().slice(0, 10),
@@ -275,6 +284,80 @@ function AllTasksPage() {
     return currentUser && task.assignee_id === currentUser.user_id;
   };
 
+  // 12) 정렬 및 필터링 처리
+  const getFilteredAndSortedTasks = () => {
+    let filteredTasks = [...tasks];
+
+    // 필터링
+    if (filterAssignee) {
+      filteredTasks = filteredTasks.filter(task => task.assignee_id === parseInt(filterAssignee));
+    }
+    if (filterTag) {
+      filteredTasks = filteredTasks.filter(task => 
+        task.tag_names && task.tag_names.includes(filterTag)
+      );
+    }
+    if (filterStatus) {
+      filteredTasks = filteredTasks.filter(task => task.status === filterStatus);
+    }
+    if (filterPriority) {
+      filteredTasks = filteredTasks.filter(task => task.priority === filterPriority);
+    }
+    if (filterTaskType) {
+      if (filterTaskType === 'parent') {
+        filteredTasks = filteredTasks.filter(task => task.is_parent_task === true);
+      } else if (filterTaskType === 'sub') {
+        filteredTasks = filteredTasks.filter(task => task.parent_task_id !== null && task.parent_task_id !== undefined);
+      } else if (filterTaskType === 'none') {
+        filteredTasks = filteredTasks.filter(task => task.is_parent_task === false && (!task.parent_task_id || task.parent_task_id === null));
+      }
+    }
+
+    // 정렬
+    filteredTasks.sort((a, b) => {
+      let aValue, bValue;
+      
+      switch (sortBy) {
+        case 'task_id':
+          aValue = a.task_id;
+          bValue = b.task_id;
+          break;
+        case 'updated_at':
+          aValue = new Date(a.updated_at || 0);
+          bValue = new Date(b.updated_at || 0);
+          break;
+        case 'start_date':
+          aValue = new Date(a.start_date || 0);
+          bValue = new Date(b.start_date || 0);
+          break;
+        case 'due_date':
+          aValue = new Date(a.due_date || 0);
+          bValue = new Date(b.due_date || 0);
+          break;
+        default:
+          aValue = a.task_id;
+          bValue = b.task_id;
+      }
+
+      if (sortOrder === 'asc') {
+        return aValue > bValue ? 1 : -1;
+      } else {
+        return aValue < bValue ? 1 : -1;
+      }
+    });
+
+    return filteredTasks;
+  };
+
+  // 13) 필터 초기화
+  const handleResetFilters = () => {
+    setFilterAssignee('');
+    setFilterTag('');
+    setFilterStatus('');
+    setFilterPriority('');
+    setFilterTaskType('');
+  };
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
       {/* 헤더 섹션 */}
@@ -316,8 +399,13 @@ function AllTasksPage() {
                 </svg>
               </div>
               <div className="ml-4">
-                <p className="text-sm text-gray-600">전체 업무</p>
-                <p className="text-2xl font-semibold text-gray-900">{tasks.length}</p>
+                <p className="text-sm text-gray-600">
+                  {(filterAssignee || filterTag || filterStatus || filterPriority || filterTaskType) ? '필터된 업무' : '전체 업무'}
+                </p>
+                <p className="text-2xl font-semibold text-gray-900">{getFilteredAndSortedTasks().length}</p>
+                {(filterAssignee || filterTag || filterStatus || filterPriority || filterTaskType) && (
+                  <p className="text-xs text-gray-400">전체: {tasks.length}</p>
+                )}
               </div>
             </div>
           </div>
@@ -330,7 +418,10 @@ function AllTasksPage() {
               </div>
               <div className="ml-4">
                 <p className="text-sm text-gray-600">진행중</p>
-                <p className="text-2xl font-semibold text-gray-900">{tasks.filter(t => t.status === 'In progress').length}</p>
+                <p className="text-2xl font-semibold text-gray-900">{getFilteredAndSortedTasks().filter(t => t.status === 'In progress').length}</p>
+                {(filterAssignee || filterTag || filterStatus || filterPriority || filterTaskType) && (
+                  <p className="text-xs text-gray-400">전체: {tasks.filter(t => t.status === 'In progress').length}</p>
+                )}
               </div>
             </div>
           </div>
@@ -343,7 +434,10 @@ function AllTasksPage() {
               </div>
               <div className="ml-4">
                 <p className="text-sm text-gray-600">완료</p>
-                <p className="text-2xl font-semibold text-gray-900">{tasks.filter(t => t.status === 'complete').length}</p>
+                <p className="text-2xl font-semibold text-gray-900">{getFilteredAndSortedTasks().filter(t => t.status === 'complete').length}</p>
+                {(filterAssignee || filterTag || filterStatus || filterPriority || filterTaskType) && (
+                  <p className="text-xs text-gray-400">전체: {tasks.filter(t => t.status === 'complete').length}</p>
+                )}
               </div>
             </div>
           </div>
@@ -356,10 +450,153 @@ function AllTasksPage() {
               </div>
               <div className="ml-4">
                 <p className="text-sm text-gray-600">높은 우선순위</p>
-                <p className="text-2xl font-semibold text-gray-900">{tasks.filter(t => t.priority === 'high').length}</p>
+                <p className="text-2xl font-semibold text-gray-900">{getFilteredAndSortedTasks().filter(t => t.priority === 'high').length}</p>
+                {(filterAssignee || filterTag || filterStatus || filterPriority || filterTaskType) && (
+                  <p className="text-xs text-gray-400">전체: {tasks.filter(t => t.priority === 'high').length}</p>
+                )}
               </div>
             </div>
           </div>
+        </div>
+
+        {/* 정렬 및 필터링 섹션 */}
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 mb-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            {/* 정렬 섹션 */}
+            <div className="flex items-center space-x-4">
+              <span className="text-sm font-medium text-gray-700">정렬:</span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="text-sm border border-gray-300 rounded px-3 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="task_id">ID</option>
+                <option value="updated_at">수정일</option>
+                <option value="start_date">시작일</option>
+                <option value="due_date">마감일</option>
+              </select>
+              <button
+                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                className="flex items-center space-x-1 text-sm px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+              >
+                <span>{sortOrder === 'asc' ? '오름차순' : '내림차순'}</span>
+                <svg className={`w-4 h-4 transition-transform ${sortOrder === 'desc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+            </div>
+
+            {/* 필터 섹션 */}
+            <div className="flex items-center space-x-4 flex-wrap">
+              <span className="text-sm font-medium text-gray-700">필터:</span>
+              
+              {/* 담당자 필터 */}
+              <select
+                value={filterAssignee}
+                onChange={(e) => setFilterAssignee(e.target.value)}
+                className="text-sm border border-gray-300 rounded px-3 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">모든 담당자</option>
+                {members.map(member => (
+                  <option key={member.user_id} value={member.user_id}>
+                    {member.name}
+                  </option>
+                ))}
+              </select>
+
+              {/* 태그 필터 */}
+              <select
+                value={filterTag}
+                onChange={(e) => setFilterTag(e.target.value)}
+                className="text-sm border border-gray-300 rounded px-3 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">모든 태그</option>
+                {projectTags.map(tag => (
+                  <option key={tag.tag_name} value={tag.tag_name}>
+                    {tag.tag_name}
+                  </option>
+                ))}
+              </select>
+
+              {/* 상태 필터 */}
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="text-sm border border-gray-300 rounded px-3 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">모든 상태</option>
+                <option value="todo">대기</option>
+                <option value="In progress">진행중</option>
+                <option value="complete">완료</option>
+              </select>
+
+              {/* 우선순위 필터 */}
+              <select
+                value={filterPriority}
+                onChange={(e) => setFilterPriority(e.target.value)}
+                className="text-sm border border-gray-300 rounded px-3 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">모든 우선순위</option>
+                <option value="high">높음</option>
+                <option value="medium">보통</option>
+                <option value="low">낮음</option>
+              </select>
+
+              {/* 업무 유형 필터 */}
+              <select
+                value={filterTaskType}
+                onChange={(e) => setFilterTaskType(e.target.value)}
+                className="text-sm border border-gray-300 rounded px-3 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">모든 업무</option>
+                <option value="parent">상위업무만</option>
+                <option value="sub">하위업무만</option>
+                <option value="none">독립업무만</option>
+              </select>
+
+              {/* 필터 초기화 버튼 */}
+              <button
+                onClick={handleResetFilters}
+                className="text-sm px-3 py-1 text-gray-600 hover:text-gray-800 border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+              >
+                초기화
+              </button>
+            </div>
+          </div>
+
+          {/* 필터 적용 상태 표시 */}
+          {(filterAssignee || filterTag || filterStatus || filterPriority || filterTaskType) && (
+            <div className="mt-3 pt-3 border-t border-gray-200">
+              <div className="flex items-center space-x-2 text-sm text-gray-600 flex-wrap">
+                <span>적용된 필터:</span>
+                {filterAssignee && (
+                  <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
+                    담당자: {members.find(m => m.user_id === parseInt(filterAssignee))?.name}
+                  </span>
+                )}
+                {filterTag && (
+                  <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">
+                    태그: {filterTag}
+                  </span>
+                )}
+                {filterStatus && (
+                  <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs">
+                    상태: {filterStatus === 'todo' ? '대기' : filterStatus === 'In progress' ? '진행중' : '완료'}
+                  </span>
+                )}
+                {filterPriority && (
+                  <span className="bg-red-100 text-red-800 px-2 py-1 rounded text-xs">
+                    우선순위: {filterPriority === 'high' ? '높음' : filterPriority === 'medium' ? '보통' : '낮음'}
+                  </span>
+                )}
+                {filterTaskType && (
+                  <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs">
+                    업무유형: {filterTaskType === 'parent' ? '상위업무' : filterTaskType === 'sub' ? '하위업무' : '독립업무'}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -590,20 +827,24 @@ function AllTasksPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {tasks.length === 0 ? (
+              {getFilteredAndSortedTasks().length === 0 ? (
                 <tr>
                   <td colSpan="8" className="px-6 py-12 text-center">
                     <div className="text-gray-400">
                       <svg className="mx-auto h-12 w-12 text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                       </svg>
-                      <p className="text-sm font-medium text-gray-500">아직 업무가 없습니다</p>
-                      <p className="text-sm text-gray-400">첫 번째 업무를 추가해보세요!</p>
+                      <p className="text-sm font-medium text-gray-500">
+                        {tasks.length === 0 ? '아직 업무가 없습니다' : '필터 조건에 맞는 업무가 없습니다'}
+                      </p>
+                      <p className="text-sm text-gray-400">
+                        {tasks.length === 0 ? '첫 번째 업무를 추가해보세요!' : '다른 필터 조건을 시도해보세요.'}
+                      </p>
                     </div>
                   </td>
                 </tr>
               ) : (
-                tasks.map((task) => (
+                getFilteredAndSortedTasks().map((task) => (
                   <tr 
                     key={task.task_id} 
                     className="hover:bg-gray-50 transition-colors duration-150 cursor-pointer"
