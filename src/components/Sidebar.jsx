@@ -1,10 +1,11 @@
 import React, { useContext, useState, useEffect } from "react";
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { OrgProjectContext } from '../context/OrgProjectContext';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 
 function Sidebar() {
   const navigate = useNavigate();
+  const location = useLocation();
   const {
     organizations,
     selectOrganization,

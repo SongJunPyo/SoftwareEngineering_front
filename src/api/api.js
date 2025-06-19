@@ -140,6 +140,17 @@ export const API_ENDPOINTS = {
     LIST: `${API_VERSION}/notifications`,
     MARK_READ: (notificationId) => `${API_VERSION}/notifications/${notificationId}/read`,
     MARK_ALL_READ: `${API_VERSION}/notifications/read-all`,
+  },
+  
+  // 작업 관리
+  TASKS: {
+    LIST: `${API_VERSION}/tasks`,
+    CREATE: `${API_VERSION}/tasks`,
+    DETAIL: (taskId) => `${API_VERSION}/tasks/${taskId}`,
+    UPDATE: (taskId) => `${API_VERSION}/tasks/${taskId}`,
+    DELETE: (taskId) => `${API_VERSION}/tasks/${taskId}`,
+    UPDATE_STATUS: (taskId) => `${API_VERSION}/tasks/${taskId}/status`,
+    PARENT_TASKS: `${API_VERSION}/parent-tasks`,
   }
 };
 
@@ -221,6 +232,17 @@ export const notificationAPI = {
   list: (params = {}) => apiClient.get(API_ENDPOINTS.NOTIFICATIONS.LIST, { params }),
   markAsRead: (notificationId) => apiClient.patch(API_ENDPOINTS.NOTIFICATIONS.MARK_READ(notificationId)),
   markAllAsRead: () => apiClient.patch(API_ENDPOINTS.NOTIFICATIONS.MARK_ALL_READ),
+};
+
+// 작업 API
+export const taskAPI = {
+  list: (params = {}) => apiClient.get(API_ENDPOINTS.TASKS.LIST, { params }),
+  create: (taskData) => apiClient.post(API_ENDPOINTS.TASKS.CREATE, taskData),
+  detail: (taskId) => apiClient.get(API_ENDPOINTS.TASKS.DETAIL(taskId)),
+  update: (taskId, taskData) => apiClient.patch(API_ENDPOINTS.TASKS.UPDATE(taskId), taskData),
+  delete: (taskId) => apiClient.delete(API_ENDPOINTS.TASKS.DELETE(taskId)),
+  updateStatus: (taskId, status) => apiClient.patch(API_ENDPOINTS.TASKS.UPDATE_STATUS(taskId), { status }),
+  getParentTasks: (params = {}) => apiClient.get(API_ENDPOINTS.TASKS.PARENT_TASKS, { params }),
 };
 
 export default apiClient;

@@ -11,6 +11,7 @@ import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import KakaoCallbackPage from './pages/KakaoCallbackPage';
 import MainPage from './pages/MainPage';
+import BoardPage from './pages/BoardPage';
 import NaverCallbackPage from './pages/NaverCallbackPage';
 import UserSettingsPage from './pages/UserSettingsPage';
 import NotificationsPage from './pages/NotificationsPage';
@@ -155,6 +156,30 @@ function AppRoutes() {
       <Route 
         path="/" 
         element={<Navigate to={isLoggedIn ? "/main" : "/login"} replace />} 
+      />
+
+      {/* Board Page (칸반 보드) */}
+      <Route
+        path="/board"
+        element={
+          isLoggedIn ? (
+            <div className="h-screen flex flex-col">
+              <TopBar
+                user={user}
+                onLogout={handleLogout}
+                onToggleSidebar={() => setSidebarOpen(prev => !prev)}
+              />
+              <div className="flex flex-1 overflow-hidden">
+                {sidebarOpen && <Sidebar />}
+                <main className="flex-1 overflow-hidden bg-gray-100">
+                  <BoardPage />
+                </main>
+              </div>
+            </div>
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        }
       />
 
       {/* Task Detail (설명 편집 포함) */}
