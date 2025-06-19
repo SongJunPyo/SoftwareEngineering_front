@@ -34,10 +34,12 @@ export default function TaskDetailPage({
     start_date: '',
     due_date: '',
     parent_task_id: '',
-    is_parent_task: false
+    is_parent_task: false,
+    tag_names: []
   });
   const [projectMembers, setProjectMembers] = useState([]);
   const [projectTasks, setProjectTasks] = useState([]);
+  const [projectTags, setProjectTags] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
 
   // 상세 조회
@@ -65,13 +67,16 @@ export default function TaskDetailPage({
           start_date: res.data.start_date ? res.data.start_date.slice(0, 10) : '',
           due_date: res.data.due_date ? res.data.due_date.slice(0, 10) : '',
           parent_task_id: res.data.parent_task_id || '',
-          is_parent_task: res.data.is_parent_task || false
+          is_parent_task: res.data.is_parent_task || false,
+          tag_names: res.data.tag_names || []
         });
         setLoading(false);
         // 프로젝트 멤버 목록 가져오기
         fetchProjectMembers(res.data.project_id);
         // 프로젝트 업무 목록 가져오기 (상위 업무 선택용)
         fetchProjectTasks(res.data.project_id);
+        // 프로젝트 태그 목록 가져오기
+        fetchProjectTags(res.data.project_id);
         // 현재 사용자 정보 가져오기
         fetchCurrentUser();
       })
@@ -109,6 +114,21 @@ export default function TaskDetailPage({
       setProjectTasks(res.data || []);
     } catch (err) {
       console.error('상위업무 목록 조회 실패:', err);
+    }
+  };
+
+  // 프로젝트 태그 목록 가져오기
+  const fetchProjectTags = async (projectId) => {
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+    
+    try {
+      const res = await axios.get(`http://localhost:8005/api/v1/projects/${projectId}/tags`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setProjectTags(res.data || []);
+    } catch (err) {
+      console.error('프로젝트 태그 목록 조회 실패:', err);
     }
   };
 
@@ -184,7 +204,8 @@ export default function TaskDetailPage({
       start_date: task.start_date ? task.start_date.slice(0, 10) : '',
       due_date: task.due_date ? task.due_date.slice(0, 10) : '',
       parent_task_id: task.parent_task_id || '',
-      is_parent_task: task.is_parent_task || false
+      is_parent_task: task.is_parent_task || false,
+      tag_names: task.tag_names || []
     });
   };
 
@@ -199,7 +220,8 @@ export default function TaskDetailPage({
       start_date: task.start_date ? task.start_date.slice(0, 10) : '',
       due_date: task.due_date ? task.due_date.slice(0, 10) : '',
       parent_task_id: task.parent_task_id || '',
-      is_parent_task: task.is_parent_task || false
+      is_parent_task: task.is_parent_task || false,
+      tag_names: task.tag_names || []
     });
   };
 
@@ -242,6 +264,9 @@ export default function TaskDetailPage({
       // 멤버는 항상 업데이트 (배열 비교가 복잡하므로)
       updateData.member_ids = editForm.member_ids.map(id => parseInt(id));
       
+      // 태그도 항상 업데이트 (배열 비교가 복잡하므로)
+      updateData.tag_names = editForm.tag_names;
+      
       const patchResponse = await axios.patch(
         `http://localhost:8005/api/v1/tasks/${taskId}`,
         updateData,
@@ -269,7 +294,8 @@ export default function TaskDetailPage({
         member_ids: res.data.member_ids || [],
         start_date: res.data.start_date ? res.data.start_date.slice(0, 10) : '',
         due_date: res.data.due_date ? res.data.due_date.slice(0, 10) : '',
-        parent_task_id: res.data.parent_task_id || ''
+        parent_task_id: res.data.parent_task_id || '',
+        tag_names: res.data.tag_names || []
       });
       setIsEditing(false);
       setLoading(false);
@@ -699,6 +725,49 @@ export default function TaskDetailPage({
                     ))}
                   </div>
                 </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-2">태그</label>
+                  {projectTags.length === 0 ? (
+                    <div className="text-sm text-gray-500 p-3 bg-gray-50 rounded">
+                      아직 태그가 없습니다.
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {projectTags.map(tag => (
+                        <button
+                          key={tag.tag_name}
+                          type="button"
+                          onClick={() => {
+                            if (editForm.tag_names.includes(tag.tag_name)) {
+                              setEditForm(prev => ({
+                                ...prev,
+                                tag_names: prev.tag_names.filter(name => name !== tag.tag_name)
+                              }));
+                            } else {
+                              setEditForm(prev => ({
+                                ...prev,
+                                tag_names: [...prev.tag_names, tag.tag_name]
+                              }));
+                            }
+                          }}
+                          className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                            editForm.tag_names.includes(tag.tag_name)
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                          }`}
+                        >
+                          {tag.tag_name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {editForm.tag_names.length > 0 && (
+                    <div className="mt-2 text-xs text-gray-600">
+                      선택된 태그: {editForm.tag_names.join(', ')}
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
               /* 보기 모드 */
@@ -742,6 +811,26 @@ export default function TaskDetailPage({
                     </div>
                   </div>
                 )}
+                
+                <div>
+                  <span className="text-sm font-medium text-gray-600">태그</span>
+                  <div className="mt-1">
+                    {task.tag_names && task.tag_names.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {task.tag_names.map(tagName => (
+                          <span
+                            key={tagName}
+                            className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                          >
+                            {tagName}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-sm text-gray-400">태그 없음</span>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
           </div>

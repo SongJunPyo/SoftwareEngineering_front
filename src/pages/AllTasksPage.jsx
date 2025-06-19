@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { Link } from 'react-router-dom';
 import TaskDetailPage from './TaskDetailPage';
 import Modal from '../components/Task_Modal';
+import TagManagementModal from '../components/TagManagementModal';
 
 function AllTasksPage() {
   // 1) Context 훅 (항상 최상단)
@@ -16,7 +17,9 @@ function AllTasksPage() {
   const [tasks, setTasks] = useState([]);
   const [members, setMembers] = useState([]);
   const [parentTasks, setParentTasks] = useState([]);
+  const [projectTags, setProjectTags] = useState([]);
   const [showModal, setShowModal] = useState(false);
+  const [showTagModal, setShowTagModal] = useState(false);
   const [openTaskId, setOpenTaskId] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [form, setForm] = useState({
@@ -27,6 +30,7 @@ function AllTasksPage() {
     parentTask: '',
     priority: 'medium',
     isParentTask: false,
+    selectedTags: [],
   });
 
   // 3) currentOrg / currentProject 계산
@@ -112,6 +116,22 @@ function AllTasksPage() {
           navigate('/login');
         }
       });
+
+    // 7-4) 프로젝트 태그 목록 호출
+    axios
+      .get(`http://localhost:8005/api/v1/projects/${projectId}/tags`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((res) => {
+        setProjectTags(res.data);
+      })
+      .catch((err) => {
+        console.error('프로젝트 태그 목록 로드 실패:', err);
+        if (err.response?.status === 401) {
+          localStorage.removeItem('access_token');
+          navigate('/login');
+        }
+      });
   }, [projectId, navigate, currentProject, taskUpdateTrigger]);
 
   // 6) 조기 리턴: 아직 프로젝트가 선택되지 않았거나 로딩 중이면
@@ -127,6 +147,16 @@ function AllTasksPage() {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  // 8-1) 태그 선택/해제 핸들러
+  const handleTagToggle = (tagName) => {
+    setForm(prev => ({
+      ...prev,
+      selectedTags: prev.selectedTags.includes(tagName)
+        ? prev.selectedTags.filter(tag => tag !== tagName)
+        : [...prev.selectedTags, tagName]
+    }));
   };
 
   // 9) 폼 제출 (업무 생성)
@@ -146,6 +176,7 @@ function AllTasksPage() {
       priority: form.priority,
       project_id: currentProject.projectId,
       is_parent_task: form.isParentTask,
+      tag_names: form.selectedTags,
     };
 
     // 간단 유효성 검사
@@ -204,6 +235,7 @@ function AllTasksPage() {
         parentTask: '',
         priority: 'medium',
         isParentTask: false,
+        selectedTags: [],
       });
     } catch (err) {
       console.error('업무 생성 실패:', err);
@@ -252,15 +284,26 @@ function AllTasksPage() {
             <h1 className="text-3xl font-bold text-gray-900">All Tasks</h1>
             <p className="text-gray-600 mt-1">프로젝트의 모든 업무를 관리하세요</p>
           </div>
-          <button
-            onClick={handleOpenModal}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-200 flex items-center space-x-2 shadow-sm"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-            <span>업무 추가</span>
-          </button>
+          <div className="flex space-x-3">
+            <button
+              onClick={() => setShowTagModal(true)}
+              className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-200 flex items-center space-x-2 shadow-sm"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+              </svg>
+              <span>태그 관리</span>
+            </button>
+            <button
+              onClick={handleOpenModal}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-200 flex items-center space-x-2 shadow-sm"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              <span>업무 추가</span>
+            </button>
+          </div>
         </div>
         
         {/* 통계 카드 */}
@@ -461,6 +504,38 @@ function AllTasksPage() {
                 </div>
               )}
 
+              {/* 태그 선택 */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">태그</label>
+                {projectTags.length === 0 ? (
+                  <div className="text-sm text-gray-500 p-3 bg-gray-50 rounded-lg">
+                    아직 태그가 없습니다. '태그 관리' 버튼을 눌러 태그를 먼저 생성해주세요.
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {projectTags.map(tag => (
+                      <button
+                        key={tag.tag_name}
+                        type="button"
+                        onClick={() => handleTagToggle(tag.tag_name)}
+                        className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                          form.selectedTags.includes(tag.tag_name)
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        {tag.tag_name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {form.selectedTags.length > 0 && (
+                  <div className="mt-2 text-xs text-gray-600">
+                    선택된 태그: {form.selectedTags.join(', ')}
+                  </div>
+                )}
+              </div>
+
               {/* 취소/저장 버튼 */}
               <div className="flex justify-end space-x-3">
                 <button
@@ -504,6 +579,9 @@ function AllTasksPage() {
                   우선순위
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  태그
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                   기간
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
@@ -514,7 +592,7 @@ function AllTasksPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {tasks.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="px-6 py-12 text-center">
+                  <td colSpan="8" className="px-6 py-12 text-center">
                     <div className="text-gray-400">
                       <svg className="mx-auto h-12 w-12 text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
@@ -596,6 +674,22 @@ function AllTasksPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4">
+                      <div className="flex flex-wrap gap-1">
+                        {task.tag_names && task.tag_names.length > 0 ? (
+                          task.tag_names.map(tagName => (
+                            <span
+                              key={tagName}
+                              className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"
+                            >
+                              {tagName}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-xs text-gray-400">태그 없음</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
                       <div className="text-sm text-gray-900">
                         <div className="flex items-center space-x-1 text-xs text-gray-500">
                           <span>📅</span>
@@ -639,6 +733,25 @@ function AllTasksPage() {
             onClose={() => setOpenTaskId(null)}
           />
         </Modal>
+      )}
+
+      {/* 태그 관리 모달 */}
+      {showTagModal && (
+        <TagManagementModal
+          projectId={projectId}
+          onClose={() => setShowTagModal(false)}
+          onTagChange={() => {
+            // 태그가 변경되면 프로젝트 태그 목록을 새로고침
+            const token = localStorage.getItem('access_token');
+            axios.get(`http://localhost:8005/api/v1/projects/${projectId}/tags`, {
+              headers: { Authorization: `Bearer ${token}` },
+            }).then((res) => {
+              setProjectTags(res.data);
+            }).catch((err) => {
+              console.error('프로젝트 태그 목록 새로고침 실패:', err);
+            });
+          }}
+        />
       )}
     </div>
   );
