@@ -675,17 +675,25 @@ export default function TaskDetailPage({
                 {[
                   ['담당자', task.assignee_name || '없음'],
                   ['상태', task.status || '없음'],
-                  ['상위 업무 ID', task.parent_task_id || '없음'],
+                  ['상위 업무', task.parent_task_id ? 
+                    (task.parent_task_title ? `${task.parent_task_title}(${task.parent_task_id})` : `업무 ID: ${task.parent_task_id}`) 
+                    : '없음'],
                   ['시작일', task.start_date?.slice(0, 10) || 'N/A'],
                   ['마감일', task.due_date?.slice(0, 10) || 'N/A'],
-                  ['생성일', task.created_at?.slice(0, 10) || 'N/A'],
-                  ['수정일', task.updated_at?.slice(0, 10) || 'N/A'],
                 ].map(([label, value]) => (
                   <div key={label} className="flex justify-between items-center">
                     <span className="text-sm font-medium text-gray-600">{label}</span>
                     <span className="text-sm text-gray-800">{value}</span>
                   </div>
                 ))}
+                
+                {/* 생성/수정일 표시 */}
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-gray-600">생성/수정일</span>
+                  <span className="text-sm text-gray-800">
+                    {task.updated_at?.slice(0, 10) || 'N/A'}
+                  </span>
+                </div>
                 
                 {task.member_ids && task.member_ids.length > 0 && (
                   <div>

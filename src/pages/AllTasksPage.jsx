@@ -430,6 +430,9 @@ function AllTasksPage() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  ID
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                   업무명
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
@@ -452,7 +455,7 @@ function AllTasksPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {tasks.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="px-6 py-12 text-center">
+                  <td colSpan="7" className="px-6 py-12 text-center">
                     <div className="text-gray-400">
                       <svg className="mx-auto h-12 w-12 text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
@@ -470,6 +473,11 @@ function AllTasksPage() {
                     onClick={() => setOpenTaskId(task.task_id)}
                   >
                     <td className="px-6 py-4">
+                      <div className="text-sm font-mono text-gray-900">
+                        #{task.task_id}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
                       <div className="flex items-center">
                         <div>
                           <div className="text-sm font-semibold text-gray-900 hover:text-blue-600 transition-colors">
@@ -477,7 +485,7 @@ function AllTasksPage() {
                           </div>
                           {task.parent_task_id && (
                             <div className="text-xs text-gray-500 mt-1">
-                              📎 하위 업무
+                              📎 하위 업무 → {task.parent_task_title ? `${task.parent_task_title}(#${task.parent_task_id})` : `#${task.parent_task_id}`}
                             </div>
                           )}
                         </div>
