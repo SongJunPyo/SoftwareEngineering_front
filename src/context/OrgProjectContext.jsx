@@ -10,6 +10,9 @@ export function OrgProjectProvider({ children }) {
   const [selectedProjectIndex, setSelectedProjectIndex] = useState(0);
   const [user, setUser] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  
+  // Task 상태 관리를 위한 상태
+  const [taskUpdateTrigger, setTaskUpdateTrigger] = useState(0);
   const navigate = useNavigate();
 
   // 조직 목록 불러오기
@@ -316,11 +319,17 @@ export function OrgProjectProvider({ children }) {
     navigate('/main', { replace: true });
   };
 
+  // Task 업데이트 트리거 함수
+  const triggerTaskUpdate = () => {
+    setTaskUpdateTrigger(prev => prev + 1);
+  };
+
   return (
     <OrgProjectContext.Provider value={{
       organizations,
       selectedOrgIndex,
       selectedProjectIndex,
+      taskUpdateTrigger,
       setOrganizations,
       selectOrganization,
       selectProject,
@@ -334,6 +343,7 @@ export function OrgProjectProvider({ children }) {
       moveProject,
       fetchOrganizations,
       handleSocialLogin,
+      triggerTaskUpdate,
     }}>
       {children}
     </OrgProjectContext.Provider>

@@ -1,10 +1,11 @@
 import React, { useContext, useState, useEffect } from "react";
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { OrgProjectContext } from '../context/OrgProjectContext';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 
 function Sidebar() {
   const navigate = useNavigate();
+  const location = useLocation();
   const {
     organizations,
     selectOrganization,
@@ -72,8 +73,9 @@ function Sidebar() {
   // 프로젝트 이동 확인 핸들러
   const handleMoveConfirm = () => {
     if (moveProjectInfo) {
-      const { sourceOrgIdx, destOrgIdx, sourceIndex } = moveProjectInfo;
-      moveProject(sourceOrgIdx, sourceIndex, 0, destOrgIdx);
+      const { project, sourceOrgIdx, destOrgIdx, sourceIndex } = moveProjectInfo;
+      deleteProject(sourceOrgIdx, sourceIndex);
+      addProject(destOrgIdx, project.name);
       setShowMoveConfirm(false);
       setMoveProjectInfo(null);
     }
@@ -86,7 +88,10 @@ function Sidebar() {
   };
 
   return (
-    <aside className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 w-64 ml-4 flex flex-col">
+    <aside className="bg-white rounded-2xl shadow-lg border border-gray-200 
+        p-6 w-64 ml-4 flex flex-col 
+        overflow-y-auto 
+        h-[calc(100vh-5rem)]">
       <div className="flex items-center justify-between mb-4 ml-2">
         <h2 className="text-lg font-bold">내 프로젝트</h2>
         <div className="flex items-center gap-2">
