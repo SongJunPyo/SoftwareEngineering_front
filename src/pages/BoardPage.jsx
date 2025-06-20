@@ -696,13 +696,19 @@ export default function BoardPage() {
 
   // 권한 체크 함수
   const canModifyTask = (task) => {
-    // 뷰어는 아무것도 수정할 수 없음
-    if (currentUserRole === 'viewer') {
-      return false;
-    }
+    if (!currentUser) return false;
     
-    // 현재 사용자가 담당자인 경우 수정 가능
-    return currentUser && task.assignee_id === currentUser.user_id;
+    // 뷰어는 아무것도 수정할 수 없음
+    if (currentUserRole === 'viewer') return false;
+    
+    // 담당자는 자신의 업무를 수정할 수 있음
+    if (task.assignee_id === currentUser.user_id) return true;
+    
+    // 소유자와 관리자는 모든 업무를 수정할 수 있음
+    if (currentUserRole === 'owner' || currentUserRole === 'admin') return true;
+    
+    // 일반 멤버는 자신이 담당한 업무만 수정 가능 (위에서 이미 체크됨)
+    return false;
   };
 
   // 필터링 및 정렬된 작업 목록

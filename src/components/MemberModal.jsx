@@ -497,14 +497,93 @@ export default function MemberModal({ members, onClose, projectId, currentUser, 
         )}
 
         {/* 권한 설명 */}
-        <div className="bg-blue-50 rounded-lg p-3 mb-4 text-sm">
-          <h4 className="font-medium text-blue-900 mb-2">권한 설명</h4>
-          <ul className="text-blue-800 space-y-1">
-            <li><span className="font-medium">소유자:</span> 모든 권한 (프로젝트 삭제, 관리자 지정)</li>
-            <li><span className="font-medium">관리자:</span> 전반적인 프로젝트 관리 권한</li>
-            <li><span className="font-medium">멤버:</span> 업무 생성, 댓글 등 상호작용 가능</li>
-            <li><span className="font-medium">뷰어:</span> 프로젝트 내용 조회만 가능</li>
-          </ul>
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 mb-4 border border-blue-100">
+          <div className="flex items-center mb-3">
+            <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h4 className="font-semibold text-blue-900 text-base">권한별 기능 안내</h4>
+          </div>
+          
+          <div className="space-y-4">
+            {/* 소유자 권한 */}
+            <div className="bg-white rounded-lg p-3 border-l-4 border-yellow-400">
+              <div className="flex items-center mb-2">
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800 mr-2">
+                  👑 소유자
+                </span>
+                <span className="text-sm text-gray-600">최고 관리자 권한</span>
+              </div>
+              <ul className="text-sm text-gray-700 space-y-1 ml-4">
+                <li>• 프로젝트 삭제 및 소유권 이전</li>
+                <li>• 관리자 지정 및 모든 멤버 권한 변경</li>
+                <li>• 모든 업무 생성/수정/삭제/상태변경</li>
+                <li>• 멤버 초대/제거 및 태그 관리</li>
+                <li>• 프로젝트 설정 변경</li>
+              </ul>
+            </div>
+
+            {/* 관리자 권한 */}
+            <div className="bg-white rounded-lg p-3 border-l-4 border-blue-400">
+              <div className="flex items-center mb-2">
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 mr-2">
+                  🛡️ 관리자
+                </span>
+                <span className="text-sm text-gray-600">프로젝트 관리 권한</span>
+              </div>
+              <ul className="text-sm text-gray-700 space-y-1 ml-4">
+                <li>• 멤버/뷰어 초대 및 제거</li>
+                <li>• 일반 멤버 권한 변경 (관리자↔멤버↔뷰어)</li>
+                <li>• 모든 업무 생성/수정/삭제/상태변경</li>
+                <li>• 댓글 작성/수정/삭제 및 태그 관리</li>
+                <li className="text-gray-500">⚠️ 다른 관리자나 소유자 권한 변경 불가</li>
+              </ul>
+            </div>
+
+            {/* 멤버 권한 */}
+            <div className="bg-white rounded-lg p-3 border-l-4 border-green-400">
+              <div className="flex items-center mb-2">
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 mr-2">
+                  👤 멤버
+                </span>
+                <span className="text-sm text-gray-600">일반 작업 권한</span>
+              </div>
+              <ul className="text-sm text-gray-700 space-y-1 ml-4">
+                <li>• 업무 생성 및 본인 담당 업무 수정/삭제</li>
+                <li>• 본인 담당 업무의 상태 변경</li>
+                <li>• 댓글 작성/수정/삭제</li>
+                <li>• 프로젝트 내 모든 정보 조회</li>
+                <li className="text-gray-500">⚠️ 다른 사람의 업무 수정/삭제 불가</li>
+              </ul>
+            </div>
+
+            {/* 뷰어 권한 */}
+            <div className="bg-white rounded-lg p-3 border-l-4 border-gray-400">
+              <div className="flex items-center mb-2">
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800 mr-2">
+                  👁️ 뷰어
+                </span>
+                <span className="text-sm text-gray-600">읽기 전용 권한</span>
+              </div>
+              <ul className="text-sm text-gray-700 space-y-1 ml-4">
+                <li>• 프로젝트 정보 및 업무 조회만 가능</li>
+                <li>• 칸반보드, 캘린더, 업무 목록 확인</li>
+                <li>• 댓글 및 태그 내용 조회</li>
+                <li className="text-red-600">⚠️ 생성/수정/삭제 등 모든 변경 작업 불가</li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="mt-3 p-2 bg-amber-50 rounded border border-amber-200">
+            <div className="flex items-start">
+              <svg className="w-4 h-4 text-amber-600 mr-1 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+              <div className="text-xs text-amber-800">
+                <strong>참고:</strong> 소유자와 관리자는 담당자가 아닌 업무도 수정/삭제할 수 있어 팀 관리가 용이합니다.
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* 닫기 버튼 */}
