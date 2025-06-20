@@ -97,16 +97,17 @@ function AllTasksPage() {
         }
       });
 
-    // 7-2) 프로젝트 멤버 목록 호출 (뷰어 제외)
+    // 7-2) 프로젝트 멤버 목록 호출 (role 정보 포함)
     axios
-      .get(`http://localhost:8005/api/v1/project_members?project_id=${projectId}`, {
+      .get(`http://localhost:8005/api/v1/projects/${projectId}/members`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then((res) => {
-        setMembers(res.data);
+        setMembers(res.data.members || res.data);
         // 현재 사용자의 역할 찾기
         if (currentUser) {
-          const currentMember = res.data.find(member => member.user_id === currentUser.user_id);
+          const memberList = res.data.members || res.data;
+          const currentMember = memberList.find(member => member.user_id === currentUser.user_id);
           if (currentMember) {
             setCurrentUserRole(currentMember.role);
           }
@@ -152,6 +153,24 @@ function AllTasksPage() {
         }
       });
   }, [projectId, navigate, currentProject, taskUpdateTrigger]);
+
+  // 5-1) currentUser가 변경되면 역할 다시 확인
+  useEffect(() => {
+    if (currentUser && members.length > 0) {
+      console.log('🔍 현재 사용자 ID:', currentUser.user_id);
+      console.log('🔍 멤버 목록:', members);
+      
+      const currentMember = members.find(member => member.user_id === currentUser.user_id);
+      if (currentMember) {
+        console.log('🔧 사용자 역할 설정:', currentMember.role);
+        setCurrentUserRole(currentMember.role);
+      } else {
+        console.log('⚠️ 현재 사용자가 프로젝트 멤버에서 찾을 수 없음');
+        console.log('⚠️ 찾고 있는 사용자 ID:', currentUser.user_id);
+        console.log('⚠️ 멤버 ID들:', members.map(m => m.user_id));
+      }
+    }
+  }, [currentUser, members]);
 
   // 6) 조기 리턴: 아직 프로젝트가 선택되지 않았거나 로딩 중이면
   if (!currentOrg || !currentProject) {
@@ -268,6 +287,23 @@ function AllTasksPage() {
 
   // 10) Task 삭제 함수
   const handleDeleteTask = async (taskId) => {
+    // 삭제할 업무 찾기
+    const taskToDelete = tasks.find(task => task.task_id === taskId);
+    if (!taskToDelete) {
+      alert('업무를 찾을 수 없습니다.');
+      return;
+    }
+
+    // 상위업무인 경우 하위업무 존재 확인
+    if (taskToDelete.is_parent_task) {
+      const childTasks = tasks.filter(task => task.parent_task_id === taskId);
+      if (childTasks.length > 0) {
+        const childTaskNames = childTasks.map(task => task.title).join(', ');
+        alert('⚠️ 하위업무가 있는 상위업무는 삭제할 수 없습니다.\n\n하위업무: ' + childTaskNames + '\n\n먼저 하위업무들을 삭제하거나 다른 상위업무로 이동해주세요.');
+        return;
+      }
+    }
+
     if (!window.confirm('정말로 이 업무를 삭제하시겠습니까?')) return;
 
     try {
@@ -291,17 +327,31 @@ function AllTasksPage() {
 
   // 11) 권한 체크 함수
   const canModifyTask = (task) => {
-    if (!currentUser) return false;
+    const result = (() => {
+      if (!currentUser) return false;
+      
+      // 뷰어는 아무것도 수정할 수 없음
+      if (currentUserRole === 'viewer') return false;
+      
+      // 담당자는 자신의 업무를 수정할 수 있음
+      if (task.assignee_id === currentUser.user_id) return true;
+      
+      // 소유자와 관리자는 모든 업무를 수정할 수 있음
+      if (currentUserRole === 'owner' || currentUserRole === 'admin') return true;
+      
+      // 일반 멤버는 자신이 담당한 업무만 수정 가능 (위에서 이미 체크됨)
+      return false;
+    })();
     
-    // 담당자는 자신의 업무를 수정할 수 있음
-    if (task.assignee_id === currentUser.user_id) return true;
+    console.log('🔍 AllTasks canModifyTask 결과:', {
+      taskTitle: task.title,
+      currentUser: currentUser?.user_id,
+      currentUserRole,
+      taskAssignee: task.assignee_id,
+      result
+    });
     
-    // 소유자와 관리자는 모든 업무를 수정할 수 있음
-    if (currentUserRole === 'owner' || currentUserRole === 'admin') return true;
-    
-    // 일반 멤버는 자신이 담당한 업무만 수정 가능 (위에서 이미 체크됨)
-    // 뷰어는 아무것도 수정할 수 없음
-    return false;
+    return result;
   };
 
   // 12) 정렬 및 필터링 처리

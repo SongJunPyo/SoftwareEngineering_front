@@ -327,6 +327,13 @@ export default function BoardPage() {
     fetchCurrentUserRole();
   }, [projectId, navigate, taskUpdateTrigger]);
 
+  // currentUser가 변경되면 역할 다시 확인
+  useEffect(() => {
+    if (currentUser && projectId) {
+      fetchCurrentUserRole();
+    }
+  }, [currentUser, projectId]);
+
   const fetchTasks = async () => {
     try {
       const token = localStorage.getItem('access_token');
@@ -382,13 +389,18 @@ export default function BoardPage() {
   const fetchCurrentUserRole = async () => {
     try {
       const token = localStorage.getItem('access_token');
-      const response = await axios.get(`http://localhost:8005/api/v1/project_members?project_id=${projectId}`, {
+      const response = await axios.get(`http://localhost:8005/api/v1/projects/${projectId}/members`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      const userId = localStorage.getItem('userId');
-      const userMember = response.data.find(member => member.user_id === parseInt(userId));
-      setCurrentUserRole(userMember?.role || null);
+      if (currentUser) {
+        const memberList = response.data.members || response.data;
+        const userMember = memberList.find(member => member.user_id === currentUser.user_id);
+        console.log('🔧 BoardPage 사용자 역할 설정:', userMember?.role);
+        setCurrentUserRole(userMember?.role || null);
+      } else {
+        console.log('⚠️ BoardPage currentUser가 없음');
+      }
     } catch (error) {
       console.error('사용자 역할 확인 실패:', error);
     }
@@ -696,19 +708,31 @@ export default function BoardPage() {
 
   // 권한 체크 함수
   const canModifyTask = (task) => {
-    if (!currentUser) return false;
+    const result = (() => {
+      if (!currentUser) return false;
+      
+      // 뷰어는 아무것도 수정할 수 없음
+      if (currentUserRole === 'viewer') return false;
+      
+      // 담당자는 자신의 업무를 수정할 수 있음
+      if (task.assignee_id === currentUser.user_id) return true;
+      
+      // 소유자와 관리자는 모든 업무를 수정할 수 있음
+      if (currentUserRole === 'owner' || currentUserRole === 'admin') return true;
+      
+      // 일반 멤버는 자신이 담당한 업무만 수정 가능 (위에서 이미 체크됨)
+      return false;
+    })();
     
-    // 뷰어는 아무것도 수정할 수 없음
-    if (currentUserRole === 'viewer') return false;
+    console.log('🔍 BoardPage canModifyTask 결과:', {
+      taskTitle: task.title,
+      currentUser: currentUser?.user_id,
+      currentUserRole,
+      taskAssignee: task.assignee_id,
+      result
+    });
     
-    // 담당자는 자신의 업무를 수정할 수 있음
-    if (task.assignee_id === currentUser.user_id) return true;
-    
-    // 소유자와 관리자는 모든 업무를 수정할 수 있음
-    if (currentUserRole === 'owner' || currentUserRole === 'admin') return true;
-    
-    // 일반 멤버는 자신이 담당한 업무만 수정 가능 (위에서 이미 체크됨)
-    return false;
+    return result;
   };
 
   // 필터링 및 정렬된 작업 목록
