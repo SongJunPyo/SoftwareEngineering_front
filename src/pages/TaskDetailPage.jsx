@@ -614,7 +614,10 @@ export default function TaskDetailPage({
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-bold">상세 정보</h2>
               {!isEditing ? (
-                currentUser && task && currentUser.user_id === task.assignee_id && currentUserRole !== 'viewer' ? (
+                currentUser && task && (
+                  (currentUser.user_id === task.assignee_id) || 
+                  (currentUserRole === 'owner' || currentUserRole === 'admin')
+                ) && currentUserRole !== 'viewer' ? (
                   <button
                     onClick={handleEditStart}
                     className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded text-sm"
@@ -623,7 +626,7 @@ export default function TaskDetailPage({
                   </button>
                 ) : (
                   <span className="text-gray-500 text-sm">
-                    {currentUserRole === 'viewer' ? '뷰어는 편집할 수 없습니다' : '담당자만 편집 가능'}
+                    {currentUserRole === 'viewer' ? '뷰어는 편집할 수 없습니다' : '담당자이거나 소유자/관리자만 편집 가능'}
                   </span>
                 )
               ) : (

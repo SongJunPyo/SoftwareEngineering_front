@@ -291,7 +291,17 @@ function AllTasksPage() {
 
   // 11) 권한 체크 함수
   const canModifyTask = (task) => {
-    return currentUser && task.assignee_id === currentUser.user_id;
+    if (!currentUser) return false;
+    
+    // 담당자는 자신의 업무를 수정할 수 있음
+    if (task.assignee_id === currentUser.user_id) return true;
+    
+    // 소유자와 관리자는 모든 업무를 수정할 수 있음
+    if (currentUserRole === 'owner' || currentUserRole === 'admin') return true;
+    
+    // 일반 멤버는 자신이 담당한 업무만 수정 가능 (위에서 이미 체크됨)
+    // 뷰어는 아무것도 수정할 수 없음
+    return false;
   };
 
   // 12) 정렬 및 필터링 처리
@@ -918,16 +928,14 @@ function AllTasksPage() {
                     <td className="px-6 py-4">
                       <div className="flex items-center">
                         <div>
-                          <div className="flex items-center space-x-2">
-                            <div className="text-sm font-semibold text-gray-900 hover:text-blue-600 transition-colors">
-                              {task.title}
-                            </div>
-                            {task.is_parent_task && (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
-                                📋 상위업무
-                              </span>
-                            )}
+                          <div className="text-sm font-semibold text-gray-900 hover:text-blue-600 transition-colors">
+                            {task.title}
                           </div>
+                          {task.is_parent_task && (
+                            <div className="text-xs text-gray-500 mt-1">
+                              📋 상위업무
+                            </div>
+                          )}
                           {task.parent_task_id && (
                             <div className="text-xs text-gray-500 mt-1">
                               📎 하위 업무 → {task.parent_task_title ? `${task.parent_task_title}(#${task.parent_task_id})` : `#${task.parent_task_id}`}
