@@ -33,6 +33,10 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config;
     
     if (error.response?.status === 401 && !originalRequest._retry) {
+      // 비밀번호 변경 요청은 로그아웃/리다이렉트 예외 처리
+      if (originalRequest.url && originalRequest.url.includes('/user/password')) {
+        return Promise.reject(error);
+      }
       originalRequest._retry = true;
       
       const refreshToken = localStorage.getItem('refresh_token');
@@ -224,7 +228,8 @@ export const userAPI = {
   updateNotifications: (notificationData) => apiClient.put(API_ENDPOINTS.USER.NOTIFICATIONS, notificationData),
   getPrivacy: () => apiClient.get(API_ENDPOINTS.USER.PRIVACY),
   updatePrivacy: (privacyData) => apiClient.put(API_ENDPOINTS.USER.PRIVACY, privacyData),
-  deleteAccount: () => apiClient.delete(API_ENDPOINTS.USER.PROFILE),
+  deleteAccount: (password) => apiClient.delete('/api/v1/user/delete', { data: { password } }),
+  changePassword: (data) => apiClient.patch('/api/v1/user/password', data),
 };
 
 // 알림 API

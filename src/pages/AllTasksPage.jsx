@@ -591,9 +591,9 @@ function AllTasksPage() {
               <select
                 value={filterPriority}
                 onChange={(e) => setFilterPriority(e.target.value)}
-                className="px-2 py-1.5 border border-gray-200 rounded-md focus:ring-1 focus:ring-blue-500 text-sm"
+                 className="text-sm border border-gray-300 rounded px-3 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
-                <option value="">우선순위</option>
+                <option value="">모든 우선순위</option>
                 <option value="high">높음</option>
                 <option value="medium">보통</option>
                 <option value="low">낮음</option>
@@ -605,48 +605,53 @@ function AllTasksPage() {
                 onChange={(e) => setFilterTaskType(e.target.value)}
                 className="px-2 py-1.5 border border-gray-200 rounded-md focus:ring-1 focus:ring-blue-500 text-sm"
               >
-                <option value="">유형</option>
-                <option value="parent">상위업무</option>
-                <option value="sub">하위업무</option>
-                <option value="none">독립업무</option>
+                <option value="">모든 업무</option>
+                <option value="parent">상위업무만</option>
+                <option value="sub">하위업무만</option>
+                <option value="none">독립업무만</option>
               </select>
+
+              {/* 필터 초기화 버튼 */}
+              <button
+                onClick={handleResetFilters}
+                className="text-sm px-3 py-1 text-gray-600 hover:text-gray-800 border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+              >
+                초기화
+              </button>
+
             </div>
           </div>
 
+          {/* 필터 적용 상태 표시 */}
+          {(filterAssignee || filterTag || filterStatus || filterPriority || filterTaskType) && (
+            <div className="mt-3 pt-3 border-t border-gray-200">
+              <div className="flex items-center space-x-2 text-sm text-gray-600 flex-wrap">
+                <span>적용된 필터:</span>
 
-          {/* 활성 필터 표시 */}
-          {(searchTerm || filterAssignee || filterTag || filterStatus || filterPriority || filterTaskType) && (
-            <div className="px-3 pb-2 border-t border-gray-100">
-              <div className="flex items-center flex-wrap gap-1 pt-2">
-                <span className="text-xs text-gray-500 mr-1">활성:</span>
-                {searchTerm && (
-                  <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs">
-                    검색: {searchTerm}
-                  </span>
-                )}
+
                 {filterAssignee && (
-                  <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs">
-                    {members.find(m => m.user_id === parseInt(filterAssignee))?.name}
+                  <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
+                    담당자: {members.find(m => m.user_id === parseInt(filterAssignee))?.name}
                   </span>
                 )}
                 {filterTag && (
-                  <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs">
-                    {filterTag}
+                  <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">
+                    태그: {filterTag}
                   </span>
                 )}
                 {filterStatus && (
-                  <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded text-xs">
-                    {filterStatus === 'todo' ? '대기' : filterStatus === 'In progress' ? '진행중' : '완료'}
+                  <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs">
+                    상태: {filterStatus === 'todo' ? '대기' : filterStatus === 'In progress' ? '진행중' : '완료'}
                   </span>
                 )}
                 {filterPriority && (
-                  <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-xs">
-                    {filterPriority === 'high' ? '높음' : filterPriority === 'medium' ? '보통' : '낮음'}
+                  <span className="bg-red-100 text-red-800 px-2 py-1 rounded text-xs">
+                    우선순위: {filterPriority === 'high' ? '높음' : filterPriority === 'medium' ? '보통' : '낮음'}
                   </span>
                 )}
                 {filterTaskType && (
-                  <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-xs">
-                    {filterTaskType === 'parent' ? '상위업무' : filterTaskType === 'sub' ? '하위업무' : '독립업무'}
+                  <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs">
+                    업무유형: {filterTaskType === 'parent' ? '상위업무' : filterTaskType === 'sub' ? '하위업무' : '독립업무'}
                   </span>
                 )}
               </div>
