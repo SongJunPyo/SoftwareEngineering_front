@@ -1,60 +1,45 @@
-import React, { useContext } from "react";
+import React, { useEffect, useState, useContext } from "react";
 import Sidebar from "../components/Sidebar";
 import { OrgProjectContext } from "../context/OrgProjectContext";
-
-const logs = [
-  {
-    time: "05:20 PM",
-    icon: "📝",
-    name: "송준표",
-    role: "팀원(직무)",
-    message: "송준표님이 댓글을 남겼습니다.",
-    content: "어쩌구 저쩌구",
-  },
-  {
-    time: "05:18 PM",
-    icon: "📄",
-    name: "김태수",
-    role: "담당자(직책)",
-    message: "김태수님이 업무를 생성했습니다.",
-    content: "업무명",
-  },
-  {
-    time: "04:30 PM",
-    icon: "📥",
-    name: "성기영",
-    role: "담당자(직책)",
-    message: "성기영님이 송준표님을 프로젝트에 초대했습니다.",
-    content: "",
-  },
-  {
-    time: "11:30 AM",
-    icon: "📄",
-    name: "이예나",
-    role: "담당자(직책)",
-    message: "이예나님이 업무를 수정했습니다.",
-    content: "마감일 25.04.30 ~ 25.05.17",
-  },
-];
+import axios from "axios";
 
 function LogContent() {
+  const [logs, setLogs] = useState([]);
+
+  useEffect(() => {
+    axios.get("/api/v1/logs")
+      .then(res => setLogs(res.data))
+      .catch(err => console.error(err));
+  }, []);
+
   return (
     <div className="p-6">
       <h2 className="text-2xl font-bold mb-6">🧮 로그</h2>
       <div className="border-l-2 border-gray-300 ml-4">
         {logs.map((log, index) => (
-          <div key={index} className="relative pl-6 mb-8">
+          <div key={log.log_id} className="relative pl-6 mb-8">
             <div className="absolute -left-3 top-1 w-6 h-6 bg-white border-2 border-blue-500 rounded-full flex items-center justify-center text-sm">
-              {log.icon}
+              {/* entity_type에 따라 아이콘 변경 */}
+              {log.entity_type === "comment" ? "💬" : log.entity_type === "task" ? "📝" : "🧩"}
             </div>
-            <div className="text-gray-600 text-sm mb-1">{log.time}</div>
+            <div className="text-gray-600 text-sm mb-1">
+              {new Date(log.timestamp).toLocaleString()}
+            </div>
             <div className="bg-gray-100 rounded-lg p-4 shadow-sm">
-              <p className="font-semibold">{log.message}</p>
-              {log.content && (
-                <p className="text-sm text-gray-700 mt-1">"{log.content}"</p>
+              <p className="font-semibold">
+                {/* 유저 이름이 있으면 이름, 없으면 user_id */}
+                {log.user_name ? log.user_name : `유저#${log.user_id}`}님이&nbsp;
+                {/* 액션/엔티티 */}
+                {log.entity_type === "comment" && log.action === "create" && "댓글을 남겼습니다."}
+                {log.entity_type === "task" && log.action === "create" && "업무를 생성했습니다."}
+                {/* 기타 액션/엔티티 조합도 추가 가능 */}
+              </p>
+              {/* 상세 내용(예: 댓글 내용, 테스크 제목 등) */}
+              {log.details && (
+                <p className="text-sm text-gray-700 mt-1">"{log.details}"</p>
               )}
               <p className="text-xs text-gray-500 mt-2">
-                {log.name} | {log.role}
+                entity_id: {log.entity_id} | project_id: {log.project_id}
               </p>
             </div>
           </div>

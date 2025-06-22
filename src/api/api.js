@@ -6,33 +6,38 @@ const API_VERSION = '/api/v1';
 
 // axios 인스턴스 생성
 const apiClient = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: 'http://localhost:8005', 
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// 요청 인터셉터: JWT 토큰 자동 추가
-apiClient.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('access_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
+// API 클라이언트의 토큰을 설정하는 함수
+export const setApiClientToken = (token) => {
+  if (token) {
+    apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    console.log('API Client Token Updated');
+  } else {
+    delete apiClient.defaults.headers.common['Authorization'];
+    console.log('API Client Token Removed');
   }
-);
+};
 
-// 응답 인터셉터: 토큰 갱신 처리
+// 페이지 로드 시 LocalStorage의 토큰으로 헤더 설정
+const token = localStorage.getItem('access_token');
+setApiClientToken(token);
+
+// 응답 인터셉터: 401 오류 처리 (토큰 만료 등)
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
     
     if (error.response?.status === 401 && !originalRequest._retry) {
+      // 비밀번호 변경 요청은 로그아웃/리다이렉트 예외 처리
+      if (originalRequest.url && originalRequest.url.includes('/user/password')) {
+        return Promise.reject(error);
+      }
       originalRequest._retry = true;
       
       const refreshToken = localStorage.getItem('refresh_token');
@@ -69,6 +74,9 @@ export const API_ENDPOINTS = {
     REGISTER: `${API_VERSION}/auth/register`,
     CHECK_EMAIL: `${API_VERSION}/auth/check-email`,
     REFRESH: `${API_VERSION}/auth/refresh`,
+    VERIFY_EMAIL: `${API_VERSION}/auth/verify-email`,
+    RESEND_VERIFICATION: `${API_VERSION}/auth/resend-verification`,
+    ME: `${API_VERSION}/auth/me`,
   },
   
   // OAuth 관련
@@ -150,7 +158,29 @@ export const API_ENDPOINTS = {
     UPDATE: (taskId) => `${API_VERSION}/tasks/${taskId}`,
     DELETE: (taskId) => `${API_VERSION}/tasks/${taskId}`,
     UPDATE_STATUS: (taskId) => `${API_VERSION}/tasks/${taskId}/status`,
+    UPDATE_DESCRIPTION: (taskId) => `${API_VERSION}/tasks/${taskId}/description`,
     PARENT_TASKS: `${API_VERSION}/parent-tasks`,
+  },
+  
+  // 댓글 관리 (신규)
+  COMMENTS: {
+    LIST_BY_TASK: (taskId) => `${API_VERSION}/comments/task/${taskId}`,
+    CREATE: `${API_VERSION}/comments/`,
+    UPDATE: (commentId) => `${API_VERSION}/comments/${commentId}`,
+    DELETE: (commentId) => `${API_VERSION}/comments/${commentId}`,
+  },
+  
+  // 태그 관리
+  TAGS: {
+    LIST: (projectId) => `${API_VERSION}/projects/${projectId}/tags`,
+    CREATE: (projectId) => `${API_VERSION}/projects/${projectId}/tags`,
+    UPDATE: (projectId, tagName) => `${API_VERSION}/projects/${projectId}/tags/${tagName}`,
+    DELETE: (projectId, tagName) => `${API_VERSION}/projects/${projectId}/tags/${tagName}`,
+  },
+  
+  // 대시보드
+  DASHBOARD: {
+    GET_DATA: (projectId) => `${API_VERSION}/dashboard/${projectId}`,
   }
 };
 
@@ -160,6 +190,9 @@ export const authAPI = {
   register: (userData) => apiClient.post(API_ENDPOINTS.AUTH.REGISTER, userData),
   checkEmail: (email) => apiClient.post(API_ENDPOINTS.AUTH.CHECK_EMAIL, { email }),
   refresh: (refreshToken) => apiClient.post(API_ENDPOINTS.AUTH.REFRESH, { refresh_token: refreshToken }),
+  verifyEmail: (token) => apiClient.post(API_ENDPOINTS.AUTH.VERIFY_EMAIL, { token }),
+  resendVerification: (email) => apiClient.post(API_ENDPOINTS.AUTH.RESEND_VERIFICATION, { email }),
+  me: () => apiClient.get(API_ENDPOINTS.AUTH.ME),
 };
 
 export const oauthAPI = {
@@ -224,7 +257,8 @@ export const userAPI = {
   updateNotifications: (notificationData) => apiClient.put(API_ENDPOINTS.USER.NOTIFICATIONS, notificationData),
   getPrivacy: () => apiClient.get(API_ENDPOINTS.USER.PRIVACY),
   updatePrivacy: (privacyData) => apiClient.put(API_ENDPOINTS.USER.PRIVACY, privacyData),
-  deleteAccount: () => apiClient.delete(API_ENDPOINTS.USER.PROFILE),
+  deleteAccount: (password) => apiClient.delete('/api/v1/user/delete', { data: { password } }),
+  changePassword: (data) => apiClient.patch('/api/v1/user/password', data),
 };
 
 // 알림 API
@@ -232,6 +266,27 @@ export const notificationAPI = {
   list: (params = {}) => apiClient.get(API_ENDPOINTS.NOTIFICATIONS.LIST, { params }),
   markAsRead: (notificationId) => apiClient.patch(API_ENDPOINTS.NOTIFICATIONS.MARK_READ(notificationId)),
   markAllAsRead: () => apiClient.patch(API_ENDPOINTS.NOTIFICATIONS.MARK_ALL_READ),
+};
+
+// 대시보드 API
+export const dashboardAPI = {
+  getDashboardData: (projectId) => apiClient.get(API_ENDPOINTS.DASHBOARD.GET_DATA(projectId)),
+};
+
+// 댓글 API
+export const commentAPI = {
+  listByTask: (taskId) => apiClient.get(API_ENDPOINTS.COMMENTS.LIST_BY_TASK(taskId)),
+  create: (commentData) => apiClient.post(API_ENDPOINTS.COMMENTS.CREATE, commentData),
+  update: (commentId, content) => apiClient.put(API_ENDPOINTS.COMMENTS.UPDATE(commentId), { content }),
+  delete: (commentId) => apiClient.delete(API_ENDPOINTS.COMMENTS.DELETE(commentId)),
+};
+
+// 태그 API
+export const tagAPI = {
+  list: (projectId) => apiClient.get(API_ENDPOINTS.TAGS.LIST(projectId)),
+  create: (projectId, tagName) => apiClient.post(API_ENDPOINTS.TAGS.CREATE(projectId), { tag_name: tagName, project_id: projectId }),
+  update: (projectId, oldTagName, newTagName) => apiClient.put(API_ENDPOINTS.TAGS.UPDATE(projectId, oldTagName), { tag_name: newTagName }),
+  delete: (projectId, tagName) => apiClient.delete(API_ENDPOINTS.TAGS.DELETE(projectId, tagName)),
 };
 
 // 작업 API
@@ -242,7 +297,8 @@ export const taskAPI = {
   update: (taskId, taskData) => apiClient.patch(API_ENDPOINTS.TASKS.UPDATE(taskId), taskData),
   delete: (taskId) => apiClient.delete(API_ENDPOINTS.TASKS.DELETE(taskId)),
   updateStatus: (taskId, status) => apiClient.patch(API_ENDPOINTS.TASKS.UPDATE_STATUS(taskId), { status }),
-  getParentTasks: (params = {}) => apiClient.get(API_ENDPOINTS.TASKS.PARENT_TASKS, { params }),
+  updateDescription: (taskId, descriptionData) => apiClient.patch(API_ENDPOINTS.TASKS.UPDATE_DESCRIPTION(taskId), descriptionData),
+  getParentTasks: (projectId) => apiClient.get(API_ENDPOINTS.TASKS.PARENT_TASKS, { params: { project_id: projectId } }),
 };
 
 export default apiClient;

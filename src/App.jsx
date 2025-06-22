@@ -9,6 +9,7 @@ import Sidebar from './components/Sidebar';
 import TaskDetailPage from './pages/TaskDetailPage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
+import EmailVerificationPage from './pages/EmailVerificationPage';
 import KakaoCallbackPage from './pages/KakaoCallbackPage';
 import MainPage from './pages/MainPage';
 import BoardPage from './pages/BoardPage';
@@ -131,6 +132,10 @@ function AppRoutes() {
           ? <SignupPage /> 
           : <Navigate to="/login" replace />
         } 
+      />
+      <Route 
+        path="/verify-email" 
+        element={<EmailVerificationPage />} 
       />
 
       {/* 2) 메인 페이지 */}

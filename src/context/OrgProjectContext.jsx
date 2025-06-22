@@ -73,8 +73,14 @@ export function OrgProjectProvider({ children }) {
   };
 
   useEffect(() => {
-    fetchOrganizations();
-  }, []);
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      setIsLoggedIn(true);
+      fetchOrganizations();
+    } else {
+      setIsLoggedIn(false);
+    }
+  }, []); // 컴포넌트 마운트 시 한 번만 실행
 
   // 프로젝트 목록 불러오기 (조직 선택 시)
   const fetchProjects = async (workspaceId, orgIdx) => {

@@ -60,9 +60,13 @@ export default function useNotifications(user) {
     }
   }, [user]);
 
-  const filteredNotifications = notifications.filter(n =>
-    filter === 'all' ? true : n.type === filter
-  );
+  const filteredNotifications = notifications.filter(n => {
+    if (filter === 'all') return true;
+    if (filter === 'project') {
+      return n.type === 'project' || n.type === 'invitation';
+    }
+    return n.type === filter;
+  });
 
   return {
     notifications: filteredNotifications,
