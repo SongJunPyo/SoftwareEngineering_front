@@ -41,6 +41,7 @@ function AllTasksPage() {
     assignee: '',
     parentTask: '',
     priority: 'medium',
+    status: 'todo',
     isParentTask: false,
     selectedTags: [],
   });
@@ -87,6 +88,11 @@ function AllTasksPage() {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then((res) => {
+        console.log('🔍 AllTasksPage API에서 온 실제 업무 데이터:');
+        res.data.forEach(task => {
+          console.log(`ID: ${task.task_id}, 제목: ${task.title}, 상태: "${task.status}" (타입: ${typeof task.status})`);
+        });
+        console.log('🔍 AllTasksPage 고유한 상태값들:', [...new Set(res.data.map(task => task.status))]);
         setTasks(res.data);
       })
       .catch((err) => {
@@ -157,17 +163,9 @@ function AllTasksPage() {
   // 5-1) currentUser가 변경되면 역할 다시 확인
   useEffect(() => {
     if (currentUser && members.length > 0) {
-      console.log('🔍 현재 사용자 ID:', currentUser.user_id);
-      console.log('🔍 멤버 목록:', members);
-      
       const currentMember = members.find(member => member.user_id === currentUser.user_id);
       if (currentMember) {
-        console.log('🔧 사용자 역할 설정:', currentMember.role);
         setCurrentUserRole(currentMember.role);
-      } else {
-        console.log('⚠️ 현재 사용자가 프로젝트 멤버에서 찾을 수 없음');
-        console.log('⚠️ 찾고 있는 사용자 ID:', currentUser.user_id);
-        console.log('⚠️ 멤버 ID들:', members.map(m => m.user_id));
       }
     }
   }, [currentUser, members]);
@@ -212,6 +210,7 @@ function AllTasksPage() {
       assignee_id: assigneeId,
       parent_task_id: parentTaskId,
       priority: form.priority,
+      status: form.status,
       project_id: currentProject.projectId,
       is_parent_task: form.isParentTask,
       tag_names: form.selectedTags,
@@ -272,6 +271,7 @@ function AllTasksPage() {
         assignee: '',
         parentTask: '',
         priority: 'medium',
+        status: 'todo',
         isParentTask: false,
         selectedTags: [],
       });
@@ -327,31 +327,19 @@ function AllTasksPage() {
 
   // 11) 권한 체크 함수
   const canModifyTask = (task) => {
-    const result = (() => {
-      if (!currentUser) return false;
-      
-      // 뷰어는 아무것도 수정할 수 없음
-      if (currentUserRole === 'viewer') return false;
-      
-      // 담당자는 자신의 업무를 수정할 수 있음
-      if (task.assignee_id === currentUser.user_id) return true;
-      
-      // 소유자와 관리자는 모든 업무를 수정할 수 있음
-      if (currentUserRole === 'owner' || currentUserRole === 'admin') return true;
-      
-      // 일반 멤버는 자신이 담당한 업무만 수정 가능 (위에서 이미 체크됨)
-      return false;
-    })();
+    if (!currentUser) return false;
     
-    console.log('🔍 AllTasks canModifyTask 결과:', {
-      taskTitle: task.title,
-      currentUser: currentUser?.user_id,
-      currentUserRole,
-      taskAssignee: task.assignee_id,
-      result
-    });
+    // 뷰어는 아무것도 수정할 수 없음
+    if (currentUserRole === 'viewer') return false;
     
-    return result;
+    // 담당자는 자신의 업무를 수정할 수 있음
+    if (task.assignee_id === currentUser.user_id) return true;
+    
+    // 소유자와 관리자는 모든 업무를 수정할 수 있음
+    if (currentUserRole === 'owner' || currentUserRole === 'admin') return true;
+    
+    // 일반 멤버는 자신이 담당한 업무만 수정 가능 (위에서 이미 체크됨)
+    return false;
   };
 
   // 12) 정렬 및 필터링 처리
@@ -513,9 +501,9 @@ function AllTasksPage() {
               </div>
               <div className="ml-4">
                 <p className="text-sm text-gray-600">진행중</p>
-                <p className="text-2xl font-semibold text-gray-900">{getFilteredAndSortedTasks().filter(t => t.status === 'In progress').length}</p>
+                <p className="text-2xl font-semibold text-gray-900">{getFilteredAndSortedTasks().filter(t => t.status === 'in_progress').length}</p>
                 {(searchTerm || filterAssignee || filterTag || filterStatus || filterPriority || filterTaskType) && (
-                  <p className="text-xs text-gray-400">전체: {tasks.filter(t => t.status === 'In progress').length}</p>
+                  <p className="text-xs text-gray-400">전체: {tasks.filter(t => t.status === 'in_progress').length}</p>
                 )}
               </div>
             </div>
@@ -642,9 +630,10 @@ function AllTasksPage() {
                 className="px-2 py-1.5 border border-gray-200 rounded-md focus:ring-1 focus:ring-blue-500 text-sm"
               >
                 <option value="">상태</option>
-                <option value="todo">대기</option>
-                <option value="In progress">진행중</option>
-                <option value="complete">완료</option>
+                <option value="todo">📝 할 일</option>
+                <option value="in_progress">🔄 진행중</option>
+                <option value="pending">⏸️ 대기</option>
+                <option value="complete">✅ 완료</option>
               </select>
 
               {/* 우선순위 필터 */}
@@ -696,7 +685,10 @@ function AllTasksPage() {
                 )}
                 {filterStatus && (
                   <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded text-xs">
-                    {filterStatus === 'todo' ? '대기' : filterStatus === 'In progress' ? '진행중' : '완료'}
+                    {filterStatus === 'todo' ? '📝 할 일' : 
+                     filterStatus === 'in_progress' ? '🔄 진행중' : 
+                     filterStatus === 'pending' ? '⏸️ 대기' : 
+                     filterStatus === 'complete' ? '✅ 완료' : filterStatus}
                   </span>
                 )}
                 {filterPriority && (
@@ -817,6 +809,22 @@ function AllTasksPage() {
                     <option value="high">🔴 높음</option>
                   </select>
                 </div>
+              </div>
+
+              {/* 상태 선택 */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">상태</label>
+                <select
+                  name="status"
+                  value={form.status}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+                >
+                  <option value="todo">📝 할 일</option>
+                  <option value="in_progress">🔄 진행중</option>
+                  <option value="pending">⏸️ 대기</option>
+                  <option value="complete">✅ 완료</option>
+                </select>
               </div>
 
               {/* 상위업무로 설정 체크박스 */}
@@ -1008,12 +1016,14 @@ function AllTasksPage() {
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
                         task.status === 'complete' ? 'bg-green-100 text-green-800' :
-                        task.status === 'In progress' ? 'bg-blue-100 text-blue-800' :
+                        task.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
+                        task.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
                         {task.status === 'complete' ? '✅ 완료' :
-                         task.status === 'In progress' ? '🔄 진행중' :
-                         '📋 대기'}
+                         task.status === 'in_progress' ? '🔄 진행중' :
+                         task.status === 'pending' ? '⏸️ 대기' :
+                         '📝 할 일'}
                       </span>
                     </td>
                     <td className="px-6 py-4">

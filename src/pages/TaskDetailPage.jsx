@@ -30,6 +30,7 @@ export default function TaskDetailPage({
     title: '',
     assignee_id: '',
     status: '',
+    priority: '',
     member_ids: [],
     start_date: '',
     due_date: '',
@@ -64,6 +65,7 @@ export default function TaskDetailPage({
           title: res.data.title || '',
           assignee_id: res.data.assignee_id || '',
           status: res.data.status || '',
+          priority: res.data.priority || '',
           member_ids: res.data.member_ids || [],
           start_date: res.data.start_date ? res.data.start_date.slice(0, 10) : '',
           due_date: res.data.due_date ? res.data.due_date.slice(0, 10) : '',
@@ -219,6 +221,7 @@ export default function TaskDetailPage({
       title: task.title || '',
       assignee_id: task.assignee_id || '',
       status: task.status || '',
+      priority: task.priority || '',
       member_ids: task.member_ids || [],
       start_date: task.start_date ? task.start_date.slice(0, 10) : '',
       due_date: task.due_date ? task.due_date.slice(0, 10) : '',
@@ -235,6 +238,7 @@ export default function TaskDetailPage({
       title: task.title || '',
       assignee_id: task.assignee_id || '',
       status: task.status || '',
+      priority: task.priority || '',
       member_ids: task.member_ids || [],
       start_date: task.start_date ? task.start_date.slice(0, 10) : '',
       due_date: task.due_date ? task.due_date.slice(0, 10) : '',
@@ -266,6 +270,9 @@ export default function TaskDetailPage({
       }
       if (editForm.status !== task.status) {
         updateData.status = editForm.status;
+      }
+      if (editForm.priority !== task.priority) {
+        updateData.priority = editForm.priority;
       }
       if (editForm.start_date && editForm.start_date !== task.start_date?.slice(0, 10)) {
         updateData.start_date = editForm.start_date + 'T00:00:00.000Z';
@@ -310,6 +317,7 @@ export default function TaskDetailPage({
         title: res.data.title || '',
         assignee_id: res.data.assignee_id || '',
         status: res.data.status || '',
+        priority: res.data.priority || '',
         member_ids: res.data.member_ids || [],
         start_date: res.data.start_date ? res.data.start_date.slice(0, 10) : '',
         due_date: res.data.due_date ? res.data.due_date.slice(0, 10) : '',
@@ -673,9 +681,23 @@ export default function TaskDetailPage({
                     onChange={(e) => setEditForm(prev => ({ ...prev, status: e.target.value }))}
                     className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-indigo-400"
                   >
-                    <option value="todo">할 일</option>
-                    <option value="In progress">진행 중</option>
-                    <option value="complete">완료</option>
+                    <option value="todo">📝 할 일</option>
+                    <option value="in_progress">🔄 진행중</option>
+                    <option value="pending">⏸️ 대기</option>
+                    <option value="complete">✅ 완료</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">우선순위</label>
+                  <select
+                    value={editForm.priority}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, priority: e.target.value }))}
+                    className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-indigo-400"
+                  >
+                    <option value="low">🟢 낮음</option>
+                    <option value="medium">🟡 보통</option>
+                    <option value="high">🔴 높음</option>
                   </select>
                 </div>
                 

@@ -10,23 +10,31 @@ import TagManagementModal from '../components/TagManagementModal';
 
 const statusConfig = {
   todo: {
-    label: "해야 할 일",
+    label: "📝 할 일",
     color: "bg-gray-100",
     textColor: "text-gray-700",
     borderColor: "border-gray-300",
     bgColor: "bg-gray-50",
     headerColor: "bg-gray-200"
   },
-  "In progress": {
-    label: "진행 중",
+  in_progress: {
+    label: "🔄 진행중",
     color: "bg-blue-100", 
     textColor: "text-blue-700",
     borderColor: "border-blue-300",
     bgColor: "bg-blue-50",
     headerColor: "bg-blue-100"
   },
+  pending: {
+    label: "⏸️ 대기",
+    color: "bg-yellow-100", 
+    textColor: "text-yellow-700",
+    borderColor: "border-yellow-300",
+    bgColor: "bg-yellow-50",
+    headerColor: "bg-yellow-100"
+  },
   complete: {
-    label: "완료",
+    label: "✅ 완료",
     color: "bg-green-100",
     textColor: "text-green-700", 
     borderColor: "border-green-300",
@@ -246,6 +254,7 @@ export default function BoardPage() {
 
   // State 훅들
   const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [members, setMembers] = useState([]);
   const [parentTasks, setParentTasks] = useState([]);
   const [projectTags, setProjectTags] = useState([]);
@@ -336,10 +345,16 @@ export default function BoardPage() {
 
   const fetchTasks = async () => {
     try {
+      setLoading(true);
       const token = localStorage.getItem('access_token');
       const response = await axios.get(`http://localhost:8005/api/v1/tasks?project_id=${projectId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      console.log('🔍 API에서 온 실제 업무 데이터:');
+      response.data.forEach(task => {
+        console.log(`ID: ${task.task_id}, 제목: ${task.title}, 상태: "${task.status}" (타입: ${typeof task.status})`);
+      });
+      console.log('🔍 고유한 상태값들:', [...new Set(response.data.map(task => task.status))]);
       setTasks(response.data);
     } catch (error) {
       console.error('작업 목록 로드 실패:', error);
@@ -347,6 +362,8 @@ export default function BoardPage() {
         localStorage.removeItem('access_token');
         navigate('/login');
       }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -396,10 +413,7 @@ export default function BoardPage() {
       if (currentUser) {
         const memberList = response.data.members || response.data;
         const userMember = memberList.find(member => member.user_id === currentUser.user_id);
-        console.log('🔧 BoardPage 사용자 역할 설정:', userMember?.role);
         setCurrentUserRole(userMember?.role || null);
-      } else {
-        console.log('⚠️ BoardPage currentUser가 없음');
       }
     } catch (error) {
       console.error('사용자 역할 확인 실패:', error);
@@ -708,31 +722,19 @@ export default function BoardPage() {
 
   // 권한 체크 함수
   const canModifyTask = (task) => {
-    const result = (() => {
-      if (!currentUser) return false;
-      
-      // 뷰어는 아무것도 수정할 수 없음
-      if (currentUserRole === 'viewer') return false;
-      
-      // 담당자는 자신의 업무를 수정할 수 있음
-      if (task.assignee_id === currentUser.user_id) return true;
-      
-      // 소유자와 관리자는 모든 업무를 수정할 수 있음
-      if (currentUserRole === 'owner' || currentUserRole === 'admin') return true;
-      
-      // 일반 멤버는 자신이 담당한 업무만 수정 가능 (위에서 이미 체크됨)
-      return false;
-    })();
+    if (!currentUser) return false;
     
-    console.log('🔍 BoardPage canModifyTask 결과:', {
-      taskTitle: task.title,
-      currentUser: currentUser?.user_id,
-      currentUserRole,
-      taskAssignee: task.assignee_id,
-      result
-    });
+    // 뷰어는 아무것도 수정할 수 없음
+    if (currentUserRole === 'viewer') return false;
     
-    return result;
+    // 담당자는 자신의 업무를 수정할 수 있음
+    if (task.assignee_id === currentUser.user_id) return true;
+    
+    // 소유자와 관리자는 모든 업무를 수정할 수 있음
+    if (currentUserRole === 'owner' || currentUserRole === 'admin') return true;
+    
+    // 일반 멤버는 자신이 담당한 업무만 수정 가능 (위에서 이미 체크됨)
+    return false;
   };
 
   // 필터링 및 정렬된 작업 목록
@@ -836,6 +838,18 @@ export default function BoardPage() {
     // 업무 목록 새로고침
     fetchTasks();
   };
+
+  // 로딩 중일 때 표시
+  if (loading) {
+    return (
+      <div className="h-full bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">업무 목록을 불러오는 중...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full bg-gray-50">
@@ -1155,9 +1169,10 @@ export default function BoardPage() {
                   onChange={handleChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
                 >
-                  <option value="todo">해야 할 일</option>
-                  <option value="In progress">진행 중</option>
-                  <option value="complete">완료</option>
+                  <option value="todo">📝 할 일</option>
+                  <option value="in_progress">🔄 진행중</option>
+                  <option value="pending">⏸️ 대기</option>
+                  <option value="complete">✅ 완료</option>
                 </select>
               </div>
 
