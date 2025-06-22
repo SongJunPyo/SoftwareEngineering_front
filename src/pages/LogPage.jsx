@@ -1,13 +1,13 @@
 import React, { useEffect, useState, useContext } from "react";
 import Sidebar from "../components/Sidebar";
 import { OrgProjectContext } from "../context/OrgProjectContext";
-import axios from "axios";
+import { logAPI } from "../api/api";
 
 function LogContent() {
   const [logs, setLogs] = useState([]);
 
   useEffect(() => {
-    axios.get("/api/v1/logs")
+    logAPI.list()
       .then(res => setLogs(res.data))
       .catch(err => console.error(err));
   }, []);
@@ -28,7 +28,7 @@ function LogContent() {
             <div className="bg-gray-100 rounded-lg p-4 shadow-sm">
               <p className="font-semibold">
                 {/* 유저 이름이 있으면 이름, 없으면 user_id */}
-                {log.user_name ? log.user_name : `유저#${log.user_id}`}님이&nbsp;
+                {log.user_name ? log.user_name : '알 수 없음 (탈퇴)'}님이&nbsp;
                 {/* 액션/엔티티 */}
                 {log.entity_type === "comment" && log.action === "create" && "댓글을 남겼습니다."}
                 {log.entity_type === "task" && log.action === "create" && "업무를 생성했습니다."}

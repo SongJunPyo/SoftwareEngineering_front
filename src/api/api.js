@@ -50,6 +50,9 @@ apiClient.interceptors.response.use(
           const newAccessToken = response.data.access_token;
           localStorage.setItem('access_token', newAccessToken);
           
+          // API 클라이언트 기본 헤더 업데이트
+          setApiClientToken(newAccessToken);
+          
           originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
           return apiClient(originalRequest);
         } catch (refreshError) {
@@ -57,6 +60,7 @@ apiClient.interceptors.response.use(
           localStorage.removeItem('access_token');
           localStorage.removeItem('refresh_token');
           localStorage.removeItem('isLoggedIn');
+          setApiClientToken(null);
           window.location.href = '/login';
         }
       }
@@ -76,6 +80,7 @@ export const API_ENDPOINTS = {
     REFRESH: `${API_VERSION}/auth/refresh`,
     VERIFY_EMAIL: `${API_VERSION}/auth/verify-email`,
     RESEND_VERIFICATION: `${API_VERSION}/auth/resend-verification`,
+    FORGOT_PASSWORD: `${API_VERSION}/auth/forgot-password`,
     ME: `${API_VERSION}/auth/me`,
   },
   
@@ -181,6 +186,11 @@ export const API_ENDPOINTS = {
   // 대시보드
   DASHBOARD: {
     GET_DATA: (projectId) => `${API_VERSION}/dashboard/${projectId}`,
+  },
+
+  // 로그 관리
+  LOGS: {
+    LIST: `${API_VERSION}/logs`,
   }
 };
 
@@ -192,6 +202,7 @@ export const authAPI = {
   refresh: (refreshToken) => apiClient.post(API_ENDPOINTS.AUTH.REFRESH, { refresh_token: refreshToken }),
   verifyEmail: (token) => apiClient.post(API_ENDPOINTS.AUTH.VERIFY_EMAIL, { token }),
   resendVerification: (email) => apiClient.post(API_ENDPOINTS.AUTH.RESEND_VERIFICATION, { email }),
+  forgotPassword: (email) => apiClient.post(API_ENDPOINTS.AUTH.FORGOT_PASSWORD, { email }),
   me: () => apiClient.get(API_ENDPOINTS.AUTH.ME),
 };
 
@@ -257,7 +268,7 @@ export const userAPI = {
   updateNotifications: (notificationData) => apiClient.put(API_ENDPOINTS.USER.NOTIFICATIONS, notificationData),
   getPrivacy: () => apiClient.get(API_ENDPOINTS.USER.PRIVACY),
   updatePrivacy: (privacyData) => apiClient.put(API_ENDPOINTS.USER.PRIVACY, privacyData),
-  deleteAccount: (password) => apiClient.delete('/api/v1/user/delete', { data: { password } }),
+  deleteAccount: (data) => apiClient.delete('/api/v1/user/delete', { data }),
   changePassword: (data) => apiClient.patch('/api/v1/user/password', data),
 };
 
@@ -299,6 +310,11 @@ export const taskAPI = {
   updateStatus: (taskId, status) => apiClient.patch(API_ENDPOINTS.TASKS.UPDATE_STATUS(taskId), { status }),
   updateDescription: (taskId, descriptionData) => apiClient.patch(API_ENDPOINTS.TASKS.UPDATE_DESCRIPTION(taskId), descriptionData),
   getParentTasks: (projectId) => apiClient.get(API_ENDPOINTS.TASKS.PARENT_TASKS, { params: { project_id: projectId } }),
+};
+
+// 로그 API
+export const logAPI = {
+  list: (params = {}) => apiClient.get(API_ENDPOINTS.LOGS.LIST, { params }),
 };
 
 export default apiClient;

@@ -1,8 +1,8 @@
 import React, { useContext, useEffect, useState } from "react";
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
-import axios from "axios";
 import { OrgProjectContext } from "../context/OrgProjectContext";
 import { useNavigate } from "react-router-dom";
+import { taskAPI, projectAPI, authAPI, tagAPI } from '../api/api';
 import { FiPlus, FiSearch, FiFilter, FiUser, FiCalendar, FiClock, FiTag, FiMoreHorizontal, FiEdit3, FiTrash2 } from "react-icons/fi";
 import TaskDetailPage from './TaskDetailPage';
 import Modal from '../components/Task_Modal';
@@ -145,7 +145,7 @@ function TaskCard({ task, index, onEdit, onDelete, canModify, onClick }) {
           <div className="flex items-center text-xs text-gray-600 gap-3 mb-2">
             <div className="flex items-center gap-1">
               <FiUser size={12} />
-              <span>{task.assignee_name || "미지정"}</span>
+              <span>{task.assignee_name || "알 수 없음 (탈퇴)"}</span>
             </div>
             <div className="flex items-center gap-1">
               <FiCalendar size={12} />
@@ -297,9 +297,7 @@ export default function BoardPage() {
         const token = localStorage.getItem('access_token');
         if (!token) return;
 
-        const response = await axios.get('http://localhost:8005/api/v1/auth/me', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const response = await authAPI.me();
         setCurrentUser(response.data);
       } catch (error) {
         console.error('현재 사용자 정보 가져오기 실패:', error);
@@ -347,9 +345,7 @@ export default function BoardPage() {
     try {
       setLoading(true);
       const token = localStorage.getItem('access_token');
-      const response = await axios.get(`http://localhost:8005/api/v1/tasks?project_id=${projectId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await taskAPI.list({ project_id: projectId });
       console.log('🔍 API에서 온 실제 업무 데이터:');
       response.data.forEach(task => {
         console.log(`ID: ${task.task_id}, 제목: ${task.title}, 상태: "${task.status}" (타입: ${typeof task.status})`);
@@ -370,10 +366,8 @@ export default function BoardPage() {
   const fetchMembers = async () => {
     try {
       const token = localStorage.getItem('access_token');
-      const response = await axios.get(`http://localhost:8005/api/v1/project_members?project_id=${projectId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setMembers(response.data.filter(member => member.role !== 'viewer'));
+      const response = await projectAPI.getMembers(projectId);
+      setMembers((response.data.members || response.data).filter(member => member.role !== 'viewer'));
     } catch (error) {
       console.error('멤버 목록 로드 실패:', error);
     }
@@ -382,9 +376,7 @@ export default function BoardPage() {
   const fetchParentTasks = async () => {
     try {
       const token = localStorage.getItem('access_token');
-      const response = await axios.get(`http://localhost:8005/api/v1/parent-tasks?project_id=${projectId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await taskAPI.getParentTasks(projectId);
       setParentTasks(response.data);
     } catch (error) {
       console.error('상위 업무 목록 로드 실패:', error);
@@ -394,9 +386,7 @@ export default function BoardPage() {
   const fetchProjectTags = async () => {
     try {
       const token = localStorage.getItem('access_token');
-      const response = await axios.get(`http://localhost:8005/api/v1/projects/${projectId}/tags`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await tagAPI.list(projectId);
       setProjectTags(response.data);
     } catch (error) {
       console.error('태그 목록 로드 실패:', error);
@@ -406,9 +396,7 @@ export default function BoardPage() {
   const fetchCurrentUserRole = async () => {
     try {
       const token = localStorage.getItem('access_token');
-      const response = await axios.get(`http://localhost:8005/api/v1/projects/${projectId}/members`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await projectAPI.getMembers(projectId);
       
       if (currentUser) {
         const memberList = response.data.members || response.data;
@@ -459,11 +447,7 @@ export default function BoardPage() {
     // 3. 상태 변경 시도
     try {
       const token = localStorage.getItem("access_token");
-      await axios.patch(
-        `http://localhost:8005/api/v1/tasks/${taskId}/status`,
-        { status: newStatus },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await taskAPI.updateStatus(taskId, newStatus);
       
       // UI 업데이트
       setTasks(prevTasks => 
@@ -603,13 +587,7 @@ export default function BoardPage() {
 
     try {
       const token = localStorage.getItem('access_token');
-      const res = await axios.post(
-        'http://localhost:8005/api/v1/tasks',
-        payload,
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
+      const res = await taskAPI.create(payload);
 
       const newTask = res.data;
       
@@ -687,9 +665,7 @@ export default function BoardPage() {
 
     try {
       const token = localStorage.getItem('access_token');
-      await axios.delete(`http://localhost:8005/api/v1/tasks/${taskId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await taskAPI.delete(taskId);
       
       setTasks(prev => {
         const filtered = prev.filter(task => task.task_id !== taskId);

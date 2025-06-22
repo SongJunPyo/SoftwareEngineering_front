@@ -1,8 +1,8 @@
 import React, { useContext, useRef, useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import axios from "axios";
 import Sidebar from "../components/Sidebar";
 import { OrgProjectContext } from "../context/OrgProjectContext";
+import { taskAPI, projectAPI, authAPI, tagAPI } from '../api/api';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -64,9 +64,7 @@ function CalendarContent() {
         const token = localStorage.getItem('access_token');
         if (!token) return;
 
-        const response = await axios.get('http://localhost:8005/api/v1/auth/me', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const response = await authAPI.me();
         setCurrentUser(response.data);
       } catch (error) {
         console.error('현재 사용자 정보 가져오기 실패:', error);
@@ -94,22 +92,14 @@ function CalendarContent() {
 
         // 병렬로 데이터 로드
         const [tasksRes, membersRes, memberRolesRes, tagsRes] = await Promise.all([
-          axios.get(`http://localhost:8005/api/v1/tasks?project_id=${projectId}`, {
-            headers: { Authorization: `Bearer ${token}` }
-          }),
-          axios.get(`http://localhost:8005/api/v1/project_members?project_id=${projectId}`, {
-            headers: { Authorization: `Bearer ${token}` }
-          }),
-          axios.get(`http://localhost:8005/api/v1/projects/${projectId}/members`, {
-            headers: { Authorization: `Bearer ${token}` }
-          }),
-          axios.get(`http://localhost:8005/api/v1/projects/${projectId}/tags`, {
-            headers: { Authorization: `Bearer ${token}` }
-          })
+          taskAPI.list({ project_id: projectId }),
+          projectAPI.getMembers(projectId),
+          projectAPI.getMembers(projectId),
+          tagAPI.list(projectId)
         ]);
 
         setTasks(tasksRes.data);
-        setMembers(membersRes.data);
+        setMembers(membersRes.data.members || membersRes.data);
         setProjectTags(tagsRes.data);
 
         // 현재 사용자 역할 설정
@@ -221,7 +211,7 @@ function CalendarContent() {
       if (startDate && dueDate && startDate !== dueDate) {
         return {
           id: `task-${task.task_id}`,
-          title: `${task.title} (${task.assignee_name || '미할당'})`,
+          title: `${task.title} (${task.assignee_name || '알 수 없음 (탈퇴)'})`,
           start: startDate,
           end: dueDate,
           backgroundColor: priorityColors[task.priority] || '#6b7280',
@@ -244,7 +234,7 @@ function CalendarContent() {
       if (eventDate) {
         return {
           id: `task-${task.task_id}`,
-          title: `${task.title} (${task.assignee_name || '미할당'})`,
+          title: `${task.title} (${task.assignee_name || '알 수 없음 (탈퇴)'})`,
           start: eventDate,
           backgroundColor: priorityColors[task.priority] || '#6b7280',
           borderColor: priorityColors[task.priority] || '#6b7280',
@@ -514,7 +504,7 @@ function CalendarContent() {
                   <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
                     <span>{statusConfig[task.status]?.label}</span>
                     <span>•</span>
-                    <span>{task.assignee_name || '미할당'}</span>
+                    <span>{task.assignee_name || '알 수 없음 (탈퇴)'}</span>
                     {task.is_parent_task && (
                       <>
                         <span>•</span>

@@ -194,7 +194,9 @@ const TabNav = styled.nav`
   margin-bottom: 2rem; /* mb-8 */
 `;
 
-const TabButton = styled.span`
+const TabButton = styled.span.withConfig({
+  shouldForwardProp: (prop) => prop !== 'active',
+})`
   margin-right: 1rem;       /* mr-4 */
   padding: 0.5rem 1rem;     /* py-2 px-4 */
   border-radius: 0.375rem;  /* rounded-md */

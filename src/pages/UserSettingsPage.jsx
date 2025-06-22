@@ -14,6 +14,11 @@ function UserSettingsPage() {
   const [profileLoading, setProfileLoading] = useState(true);
   const [passwordWarning, setPasswordWarning] = useState('');
   const [settingsLoading, setSettingsLoading] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteForm, setDeleteForm] = useState({
+    confirmationText: '',
+    password: ''
+  });
 
   // 사용자 provider 정보 불러오기
   useEffect(() => {
@@ -124,24 +129,47 @@ function UserSettingsPage() {
     }
   };
 
-  const handleAccountDelete = async () => {
-    if (!window.confirm('정말로 계정을 탈퇴하시겠습니까?')) return;
+  const handleDeleteModalOpen = () => {
+    setDeleteModalOpen(true);
+  };
 
-    // "탈퇴하겠습니다" 문구 입력 요구
-    const confirmText = window.prompt('정확히 다음 문구를 입력해야 탈퇴가 진행됩니다.\n\n탈퇴하겠습니다');
-    if (confirmText !== '탈퇴하겠습니다') {
-      alert('정확히 "탈퇴하겠습니다"를 입력해야 탈퇴가 진행됩니다.');
+  const handleDeleteModalClose = () => {
+    setDeleteModalOpen(false);
+    setDeleteForm({ confirmationText: '', password: '' });
+  };
+
+  const handleDeleteFormChange = (e) => {
+    const { name, value } = e.target;
+    setDeleteForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleAccountDelete = async () => {
+    // 확인 문자열 검증
+    if (deleteForm.confirmationText !== '계정을 영구 삭제합니다') {
+      alert('확인 문자를 정확히 입력해주세요.');
+      return;
+    }
+
+    // 소셜 로그인이 아닌 경우 비밀번호 필수
+    if (provider === 'local' && !deleteForm.password) {
+      alert('비밀번호를 입력해주세요.');
       return;
     }
 
     try {
-      // password 없이 DELETE 요청
-      await userAPI.deleteAccount();
+      await userAPI.deleteAccount({
+        confirmation_text: deleteForm.confirmationText,
+        password: deleteForm.password || ''
+      });
       alert('계정이 탈퇴되었습니다.');
       localStorage.clear();
       window.location.href = '/login';
     } catch (error) {
-      alert('계정 탈퇴 중 오류가 발생했습니다.');
+      if (error.response?.data?.detail) {
+        alert(error.response.data.detail);
+      } else {
+        alert('계정 탈퇴 중 오류가 발생했습니다.');
+      }
     }
   };
 
@@ -240,13 +268,95 @@ function UserSettingsPage() {
       </section>
 
       {/* 계정 탈퇴 */}
-      <section className="bg-white p-6 rounded shadow">
-        <h2 className="text-2xl font-semibold mb-4">계정 탈퇴</h2>
+      <section className="bg-white p-6 rounded shadow border-l-4 border-red-500">
+        <h2 className="text-2xl font-semibold mb-4 text-red-600">⚠️ 위험 구역</h2>
+        <div className="bg-red-50 p-4 rounded mb-4">
+          <h3 className="font-semibold text-red-800 mb-2">계정 탈퇴 시 주의사항</h3>
+          <ul className="text-sm text-red-700 space-y-1">
+            <li>• 본인이 소유한 모든 프로젝트가 완전히 삭제됩니다</li>
+            <li>• 본인이 담당자로 지정된 업무들의 담당자가 "알 수 없음 (탈퇴)"로 변경됩니다</li>
+            <li>• 작성한 댓글은 유지되지만 작성자가 "알 수 없음 (탈퇴)"로 표시됩니다</li>
+            <li>• 이 작업은 되돌릴 수 없습니다</li>
+          </ul>
+        </div>
         {provider !== 'local' && (
-          <div className="text-red-500 mb-2">소셜로그인 계정은 비밀번호가 없어 탈퇴 시 비밀번호 확인이 필요하지 않습니다.</div>
+          <div className="text-orange-600 bg-orange-50 p-3 rounded mb-4">
+            소셜로그인 계정은 비밀번호 확인 없이 탈퇴됩니다.
+          </div>
         )}
-        <button type="button" onClick={handleAccountDelete} className="bg-red-500 text-white px-4 py-2 rounded">계정 탈퇴</button>
+        <button 
+          type="button" 
+          onClick={handleDeleteModalOpen} 
+          className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded font-semibold transition-colors"
+        >
+          계정 탈퇴
+        </button>
       </section>
+
+      {/* 계정 삭제 확인 모달 */}
+      {deleteModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-xl font-bold text-red-600 mb-4">⚠️ 계정 영구 삭제</h3>
+            
+            <div className="bg-red-50 p-4 rounded mb-4">
+              <p className="text-sm text-red-800 mb-2 font-semibold">다음 항목들이 삭제됩니다:</p>
+              <ul className="text-xs text-red-700 space-y-1">
+                <li>• 소유한 모든 프로젝트 및 관련 업무</li>
+                <li>• 워크스페이스 및 설정</li>
+                <li>• 알림 및 활동 로그</li>
+              </ul>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  다음 문구를 정확히 입력하세요: <span className="text-red-500">"계정을 영구 삭제합니다"</span>
+                </label>
+                <input
+                  type="text"
+                  name="confirmationText"
+                  value={deleteForm.confirmationText}
+                  onChange={handleDeleteFormChange}
+                  className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  placeholder="계정을 영구 삭제합니다"
+                />
+              </div>
+
+              {provider === 'local' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    비밀번호 확인
+                  </label>
+                  <input
+                    type="password"
+                    name="password"
+                    value={deleteForm.password}
+                    onChange={handleDeleteFormChange}
+                    className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                    placeholder="현재 비밀번호를 입력하세요"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={handleDeleteModalClose}
+                className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded font-medium transition-colors"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleAccountDelete}
+                className="flex-1 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded font-medium transition-colors"
+              >
+                영구 삭제
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

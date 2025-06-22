@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { authAPI, oauthAPI } from '../api/api';
+import { authAPI, oauthAPI, setApiClientToken } from '../api/api';
 import { useGoogleLogin } from '@react-oauth/google';
 import axios from 'axios'; // Google API 호출용 (외부 API)
 
@@ -90,6 +90,16 @@ function LoginPage({ onLogin }) {
     error: ""
   });
 
+  // 비밀번호 찾기 관련 상태
+  const [forgotPassword, setForgotPassword] = useState({
+    showModal: false,
+    email: "",
+    loading: false,
+    success: false,
+    error: "",
+    cooldown: 0
+  });
+
   // 초대 컨텍스트 확인 함수
   const checkInvitationContext = () => {
     try {
@@ -162,6 +172,73 @@ function LoginPage({ onLogin }) {
     return () => window.removeEventListener('focus', handleFocus);
   }, []);
 
+  // 비밀번호 찾기 쿨다운 타이머
+  useEffect(() => {
+    let timer;
+    if (forgotPassword.cooldown > 0) {
+      timer = setTimeout(() => {
+        setForgotPassword(prev => ({ ...prev, cooldown: prev.cooldown - 1 }));
+      }, 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [forgotPassword.cooldown]);
+
+  // 비밀번호 찾기 모달 관련 함수들
+  const handleForgotPasswordOpen = () => {
+    setForgotPassword(prev => ({
+      ...prev,
+      showModal: true,
+      email: formData.email || "",
+      error: "",
+      success: false
+    }));
+  };
+
+  const handleForgotPasswordClose = () => {
+    setForgotPassword(prev => ({
+      ...prev,
+      showModal: false,
+      email: "",
+      error: "",
+      success: false,
+      loading: false
+    }));
+  };
+
+  const handleForgotPasswordSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!forgotPassword.email) {
+      setForgotPassword(prev => ({ ...prev, error: "이메일을 입력해주세요." }));
+      return;
+    }
+
+    if (!validateEmail(forgotPassword.email)) {
+      setForgotPassword(prev => ({ ...prev, error: "올바른 이메일 형식이 아닙니다." }));
+      return;
+    }
+
+    setForgotPassword(prev => ({ ...prev, loading: true, error: "", success: false }));
+
+    try {
+      await authAPI.forgotPassword(forgotPassword.email);
+      setForgotPassword(prev => ({
+        ...prev,
+        loading: false,
+        success: true,
+        cooldown: 60,
+        error: ""
+      }));
+    } catch (error) {
+      console.error('비밀번호 찾기 오류:', error);
+      setForgotPassword(prev => ({
+        ...prev,
+        loading: false,
+        error: error.response?.data?.detail || "비밀번호 재설정에 실패했습니다."
+      }));
+    }
+  };
+
   // Common login success handler
   const handleLoginSuccess = (responseData) => {
     try {
@@ -182,6 +259,9 @@ function LoginPage({ onLogin }) {
       Object.entries(tokenData).forEach(([key, value]) => {
         if (value) localStorage.setItem(key, value);
       });
+
+      // API 클라이언트에 토큰 설정
+      setApiClientToken(responseData.access_token);
 
       console.log('로그인 성공:', {
         email: responseData.email,
@@ -497,6 +577,17 @@ function LoginPage({ onLogin }) {
                 onUpdate={updateFormData}
               />
               
+              {/* 비밀번호 찾기 링크 */}
+              <div className="w-full text-center mt-3 mb-4">
+                <button
+                  type="button"
+                  onClick={handleForgotPasswordOpen}
+                  className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                >
+                  비밀번호를 잊으셨나요?
+                </button>
+              </div>
+              
               <SocialLoginButtons
                 onGoogleLogin={() => googleLogin()}
                 onKakaoLogin={handleKakaoLogin}
@@ -513,6 +604,137 @@ function LoginPage({ onLogin }) {
           )}
         </section>
       </main>
+
+      {/* 비밀번호 찾기 모달 */}
+      {forgotPassword.showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4">
+            {!forgotPassword.success ? (
+              // 이메일 입력 폼
+              <>
+                <div className="text-center mb-6">
+                  <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-blue-100 mb-4">
+                    <svg className="h-8 w-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.74 5.74L9.5 13H8a1 1 0 01-1-1V9.5l3.26-3.26A6 6 0 0117 7z" />
+                    </svg>
+                  </div>
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">비밀번호 찾기</h2>
+                  <p className="text-gray-600">
+                    가입하신 이메일 주소를 입력해주세요.<br/>
+                    임시 비밀번호를 발송해드립니다.
+                  </p>
+                </div>
+
+                <form onSubmit={handleForgotPasswordSubmit} className="space-y-4">
+                  <div>
+                    <input
+                      type="email"
+                      placeholder="이메일 주소를 입력하세요"
+                      value={forgotPassword.email}
+                      onChange={(e) => setForgotPassword(prev => ({ ...prev, email: e.target.value, error: "" }))}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
+                    />
+                  </div>
+
+                  {forgotPassword.error && (
+                    <div className="p-3 bg-red-100 text-red-700 rounded-lg text-sm">
+                      {forgotPassword.error}
+                    </div>
+                  )}
+
+                  <div className="flex space-x-3">
+                    <button
+                      type="button"
+                      onClick={handleForgotPasswordClose}
+                      className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      취소
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={forgotPassword.loading}
+                      className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                        forgotPassword.loading
+                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          : 'bg-blue-500 text-white hover:bg-blue-600'
+                      }`}
+                    >
+                      {forgotPassword.loading ? (
+                        <span className="flex items-center justify-center">
+                          <svg className="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="m15.75 9.53-1.5-1.5a.75.75 0 00-1.06 1.06l.97.97H8.25a.75.75 0 000 1.5h5.91l-.97.97a.75.75 0 101.06 1.06l1.5-1.5A.75.75 0 0015.75 9.53z" />
+                          </svg>
+                          전송 중...
+                        </span>
+                      ) : (
+                        '임시 비밀번호 발송'
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </>
+            ) : (
+              // 성공 화면
+              <>
+                <div className="text-center mb-6">
+                  <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
+                    <svg className="h-8 w-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 7.89a2 2 0 002.83 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">임시 비밀번호 발송 완료!</h2>
+                  <p className="text-gray-600 mb-4">
+                    <strong className="text-blue-600">{forgotPassword.email}</strong>로<br/>
+                    임시 비밀번호를 발송했습니다.
+                  </p>
+                </div>
+
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                  <div className="flex">
+                    <svg className="flex-shrink-0 h-5 w-5 text-yellow-400 mt-0.5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.268 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                    <div className="text-sm text-yellow-700">
+                      <p className="font-medium mb-1">중요 안내:</p>
+                      <ul className="list-disc list-inside space-y-1">
+                        <li>이메일함(스팸함 포함)을 확인하세요</li>
+                        <li>임시 비밀번호로 로그인하세요</li>
+                        <li>로그인 후 설정에서 새 비밀번호로 변경하세요</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <button
+                    onClick={handleForgotPasswordSubmit}
+                    disabled={forgotPassword.cooldown > 0}
+                    className={`w-full px-4 py-2 rounded-lg font-medium transition-colors ${
+                      forgotPassword.cooldown > 0
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-blue-500 text-white hover:bg-blue-600'
+                    }`}
+                  >
+                    {forgotPassword.cooldown > 0
+                      ? `${forgotPassword.cooldown}초 후 재전송 가능`
+                      : '임시 비밀번호 재전송'
+                    }
+                  </button>
+
+                  <button
+                    onClick={handleForgotPasswordClose}
+                    className="w-full bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors"
+                  >
+                    로그인 화면으로 돌아가기
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

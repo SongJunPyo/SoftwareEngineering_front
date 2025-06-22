@@ -18,6 +18,7 @@ import UserSettingsPage from './pages/UserSettingsPage';
 import NotificationsPage from './pages/NotificationsPage';
 import InviteAcceptPage from './pages/InviteAcceptPage';
 import { OrgProjectProvider, OrgProjectContext } from './context/OrgProjectContext';
+import { setApiClientToken } from './api/api';
 
 function App() {
   return (
@@ -59,6 +60,10 @@ function AppRoutes() {
       localStorage.removeItem(key);
       sessionStorage.removeItem(key);
     });
+    
+    // API 클라이언트에서 토큰 제거
+    setApiClientToken(null);
+    
     // 구글 OAuth 세션 정리 (선택)
     try {
       if (window.google && window.google.accounts) {

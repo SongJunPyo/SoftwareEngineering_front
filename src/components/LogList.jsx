@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
 import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper } from '@mui/material';
+import { logAPI } from '../api/api';
 
 const LogList = () => {
   const [logs, setLogs] = useState([]);
@@ -8,7 +8,7 @@ const LogList = () => {
   useEffect(() => {
     const fetchLogs = async () => {
       try {
-        const response = await axios.get('/api/v1/logs/');
+        const response = await logAPI.list();
         setLogs(response.data);
       } catch (error) {
         console.error('로그를 불러오는데 실패했습니다:', error);

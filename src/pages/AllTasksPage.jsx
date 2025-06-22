@@ -1,7 +1,7 @@
 import React, { useContext, useState, useEffect } from 'react';
-import axios from 'axios';
 import { OrgProjectContext } from '../context/OrgProjectContext';
 import { useNavigate } from 'react-router-dom';
+import { taskAPI, projectAPI, authAPI, tagAPI } from '../api/api';
 import { Link } from 'react-router-dom';
 import TaskDetailPage from './TaskDetailPage';
 import Modal from '../components/Task_Modal';
@@ -58,9 +58,7 @@ function AllTasksPage() {
         const token = localStorage.getItem('access_token');
         if (!token) return;
 
-        const response = await axios.get('http://localhost:8005/api/v1/auth/me', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const response = await authAPI.me();
         setCurrentUser(response.data);
       } catch (error) {
         console.error('현재 사용자 정보 가져오기 실패:', error);
@@ -83,10 +81,8 @@ function AllTasksPage() {
     }
 
     // 7-1) 작업 목록 호출
-    axios
-      .get(`http://localhost:8005/api/v1/tasks?project_id=${projectId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+    taskAPI
+      .list({ project_id: projectId })
       .then((res) => {
         console.log('🔍 AllTasksPage API에서 온 실제 업무 데이터:');
         res.data.forEach(task => {
@@ -104,10 +100,8 @@ function AllTasksPage() {
       });
 
     // 7-2) 프로젝트 멤버 목록 호출 (role 정보 포함)
-    axios
-      .get(`http://localhost:8005/api/v1/projects/${projectId}/members`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+    projectAPI
+      .getMembers(projectId)
       .then((res) => {
         setMembers(res.data.members || res.data);
         // 현재 사용자의 역할 찾기
@@ -128,10 +122,8 @@ function AllTasksPage() {
       });
 
     // 7-3) 상위업무 목록 호출
-    axios
-      .get(`http://localhost:8005/api/v1/parent-tasks?project_id=${projectId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+    taskAPI
+      .getParentTasks(projectId)
       .then((res) => {
         setParentTasks(res.data);
       })
@@ -144,10 +136,8 @@ function AllTasksPage() {
       });
 
     // 7-4) 프로젝트 태그 목록 호출
-    axios
-      .get(`http://localhost:8005/api/v1/projects/${projectId}/tags`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+    tagAPI
+      .list(projectId)
       .then((res) => {
         setProjectTags(res.data);
       })
@@ -240,13 +230,7 @@ function AllTasksPage() {
       const token = localStorage.getItem('access_token');
       console.log('🚀 Task 생성 API 호출:', payload);
       
-      const res = await axios.post(
-        'http://localhost:8005/api/v1/tasks',
-        payload,
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
+      const res = await taskAPI.create(payload);
 
       console.log('✅ Task 생성 API 응답:', res.data);
       
@@ -308,9 +292,7 @@ function AllTasksPage() {
 
     try {
       const token = localStorage.getItem('access_token');
-      await axios.delete(`http://localhost:8005/api/v1/tasks/${taskId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await taskAPI.delete(taskId);
       
       // WebSocket 이벤트가 오지 않을 경우를 대비해 즉시 로컬 상태 업데이트
       setTasks(prev => {
@@ -1009,7 +991,7 @@ function AllTasksPage() {
                             <span className="text-sm text-gray-900">{task.assignee_name}</span>
                           </div>
                         ) : (
-                          <span className="text-sm text-gray-400">미지정</span>
+                          <span className="text-sm text-gray-400">알 수 없음 (탈퇴)</span>
                         )}
                       </div>
                     </td>
@@ -1107,9 +1089,7 @@ function AllTasksPage() {
           onTagChange={() => {
             // 태그가 변경되면 프로젝트 태그 목록을 새로고침
             const token = localStorage.getItem('access_token');
-            axios.get(`http://localhost:8005/api/v1/projects/${projectId}/tags`, {
-              headers: { Authorization: `Bearer ${token}` },
-            }).then((res) => {
+            tagAPI.list(projectId).then((res) => {
               setProjectTags(res.data);
             }).catch((err) => {
               console.error('프로젝트 태그 목록 새로고침 실패:', err);

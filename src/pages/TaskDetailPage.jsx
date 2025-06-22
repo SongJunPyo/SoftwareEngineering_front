@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext } from 'react';
-import axios from 'axios';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { OrgProjectContext } from '../context/OrgProjectContext';
+import { taskAPI, projectAPI, authAPI, commentAPI, tagAPI } from '../api/api';
 
 export default function TaskDetailPage({
   inner,                // 모달 여부
@@ -53,10 +53,8 @@ export default function TaskDetailPage({
       return;
     }
 
-    axios
-      .get(`http://localhost:8005/api/v1/tasks/${taskId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+    taskAPI
+      .detail(taskId)
       .then((res) => {
         setTask(res.data);
         setDescription(res.data.description || '');
@@ -96,9 +94,7 @@ export default function TaskDetailPage({
     if (!token) return;
     
     try {
-      const res = await axios.get(`http://localhost:8005/api/v1/projects/${projectId}/members`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await projectAPI.getMembers(projectId);
       setProjectMembers(res.data.members || []);
       
       // 현재 사용자의 역할 찾기
@@ -119,9 +115,7 @@ export default function TaskDetailPage({
     if (!token) return;
     
     try {
-      const res = await axios.get(`http://localhost:8005/api/v1/parent-tasks?project_id=${projectId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await taskAPI.getParentTasks(projectId);
       setProjectTasks(res.data || []);
     } catch (err) {
       console.error('상위업무 목록 조회 실패:', err);
@@ -134,9 +128,7 @@ export default function TaskDetailPage({
     if (!token) return;
     
     try {
-      const res = await axios.get(`http://localhost:8005/api/v1/projects/${projectId}/tags`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await tagAPI.list(projectId);
       setProjectTags(res.data || []);
     } catch (err) {
       console.error('프로젝트 태그 목록 조회 실패:', err);
@@ -155,9 +147,7 @@ export default function TaskDetailPage({
     } catch (err) {
       console.error('토큰에서 사용자 정보 추출 실패:', err);
       try {
-        const res = await axios.get('http://localhost:8005/api/v1/auth/me', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await authAPI.me();
         setCurrentUser(res.data);
       } catch (apiErr) {
         console.error('현재 사용자 정보 조회 실패:', apiErr);
@@ -168,7 +158,7 @@ export default function TaskDetailPage({
   // 댓글 목록 불러오기
   const fetchComments = async () => {
     try {
-      const res = await axios.get(`http://localhost:8005/comments/task/${taskId}`);
+      const res = await commentAPI.listByTask(taskId);
       setComments(res.data);
     } catch (err) {
       console.error('댓글 불러오기 실패:', err);
@@ -199,11 +189,9 @@ export default function TaskDetailPage({
       return;
     }
     try {
-      await axios.post('http://localhost:8005/comments/', {
+      await commentAPI.create({
         task_id: taskId,
         content: newComment,
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       setNewComment('');
       fetchComments();
@@ -293,11 +281,7 @@ export default function TaskDetailPage({
       // 태그도 항상 업데이트 (배열 비교가 복잡하므로)
       updateData.tag_names = editForm.tag_names;
       
-      const patchResponse = await axios.patch(
-        `http://localhost:8005/api/v1/tasks/${taskId}`,
-        updateData,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const patchResponse = await taskAPI.update(taskId, updateData);
       
       console.log('🔄 Task 수정 완료:', patchResponse.data);
       alert('업무 정보가 저장되었습니다.');
@@ -307,10 +291,7 @@ export default function TaskDetailPage({
       
       // 페이지 데이터 재로드
       setLoading(true);
-      const res = await axios.get(
-        `http://localhost:8005/api/v1/tasks/${taskId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const res = await taskAPI.detail(taskId);
       setTask(res.data);
       setDescription(res.data.description || '');
       setEditForm({
@@ -341,11 +322,7 @@ export default function TaskDetailPage({
       return;
     }
     try {
-      const patchResponse = await axios.patch(
-        `http://localhost:8005/api/v1/tasks/${taskId}`,
-        { description },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const patchResponse = await taskAPI.updateDescription(taskId, { description });
       
       console.log('🔄 TaskDetailPage에서 Task 수정 완료:', patchResponse.data);
       alert('설명이 저장되었습니다.');
@@ -354,10 +331,7 @@ export default function TaskDetailPage({
       triggerTaskUpdate();
       
       setLoading(true);
-      const res = await axios.get(
-        `http://localhost:8005/api/v1/tasks/${taskId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const res = await taskAPI.detail(taskId);
       setTask(res.data);
       setDescription(res.data.description || '');
       setLoading(false);
@@ -386,11 +360,7 @@ export default function TaskDetailPage({
       return;
     }
     try {
-      await axios.patch(`http://localhost:8005/comments/${comment_id}`, {
-        content: editingContent,
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await commentAPI.update(comment_id, editingContent);
       setEditingCommentId(null);
       setEditingContent('');
       fetchComments();
@@ -408,9 +378,7 @@ export default function TaskDetailPage({
       return;
     }
     try {
-      await axios.delete(`http://localhost:8005/comments/${comment_id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await commentAPI.delete(comment_id);
       fetchComments();
     } catch (err) {
       alert('댓글 삭제에 실패했습니다.');
@@ -590,7 +558,7 @@ export default function TaskDetailPage({
                       <div className="flex justify-between items-start">
                         <div>
                           <div className="flex items-center space-x-2 mb-1">
-                            <span className="text-sm font-medium text-gray-700">{c.user_name || '알 수 없는 사용자'}</span>
+                            <span className="text-sm font-medium text-gray-700">{c.user_name || '알 수 없음 (탈퇴)'}</span>
                             <span className="text-xs text-gray-500">{new Date(c.updated_at).toLocaleString()} {c.is_updated ? '(수정됨)' : ''}</span>
                           </div>
                           <div className="text-sm text-gray-800">{c.content}</div>
@@ -834,7 +802,7 @@ export default function TaskDetailPage({
               /* 보기 모드 */
               <div className="space-y-4">
                 {[
-                  ['담당자', task.assignee_name || '없음'],
+                  ['담당자', task.assignee_name || '알 수 없음 (탈퇴)'],
                   ['상태', task.status || '없음'],
                   ['업무 유형', task.is_parent_task ? '📋 상위업무' : '📝 일반업무'],
                   ['상위 업무', task.parent_task_id ? 
