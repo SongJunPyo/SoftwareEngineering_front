@@ -10,23 +10,31 @@ import TagManagementModal from '../components/TagManagementModal';
 
 const statusConfig = {
   todo: {
-    label: "해야 할 일",
+    label: "📝 할 일",
     color: "bg-gray-100",
     textColor: "text-gray-700",
     borderColor: "border-gray-300",
     bgColor: "bg-gray-50",
     headerColor: "bg-gray-200"
   },
-  "In progress": {
-    label: "진행 중",
+  in_progress: {
+    label: "🔄 진행중",
     color: "bg-blue-100", 
     textColor: "text-blue-700",
     borderColor: "border-blue-300",
     bgColor: "bg-blue-50",
     headerColor: "bg-blue-100"
   },
+  pending: {
+    label: "⏸️ 대기",
+    color: "bg-yellow-100", 
+    textColor: "text-yellow-700",
+    borderColor: "border-yellow-300",
+    bgColor: "bg-yellow-50",
+    headerColor: "bg-yellow-100"
+  },
   complete: {
-    label: "완료",
+    label: "✅ 완료",
     color: "bg-green-100",
     textColor: "text-green-700", 
     borderColor: "border-green-300",
@@ -246,6 +254,7 @@ export default function BoardPage() {
 
   // State 훅들
   const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [members, setMembers] = useState([]);
   const [parentTasks, setParentTasks] = useState([]);
   const [projectTags, setProjectTags] = useState([]);
@@ -327,12 +336,25 @@ export default function BoardPage() {
     fetchCurrentUserRole();
   }, [projectId, navigate, taskUpdateTrigger]);
 
+  // currentUser가 변경되면 역할 다시 확인
+  useEffect(() => {
+    if (currentUser && projectId) {
+      fetchCurrentUserRole();
+    }
+  }, [currentUser, projectId]);
+
   const fetchTasks = async () => {
     try {
+      setLoading(true);
       const token = localStorage.getItem('access_token');
       const response = await axios.get(`http://localhost:8005/api/v1/tasks?project_id=${projectId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      console.log('🔍 API에서 온 실제 업무 데이터:');
+      response.data.forEach(task => {
+        console.log(`ID: ${task.task_id}, 제목: ${task.title}, 상태: "${task.status}" (타입: ${typeof task.status})`);
+      });
+      console.log('🔍 고유한 상태값들:', [...new Set(response.data.map(task => task.status))]);
       setTasks(response.data);
     } catch (error) {
       console.error('작업 목록 로드 실패:', error);
@@ -340,6 +362,8 @@ export default function BoardPage() {
         localStorage.removeItem('access_token');
         navigate('/login');
       }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -382,13 +406,15 @@ export default function BoardPage() {
   const fetchCurrentUserRole = async () => {
     try {
       const token = localStorage.getItem('access_token');
-      const response = await axios.get(`http://localhost:8005/api/v1/project_members?project_id=${projectId}`, {
+      const response = await axios.get(`http://localhost:8005/api/v1/projects/${projectId}/members`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      const userId = localStorage.getItem('userId');
-      const userMember = response.data.find(member => member.user_id === parseInt(userId));
-      setCurrentUserRole(userMember?.role || null);
+      if (currentUser) {
+        const memberList = response.data.members || response.data;
+        const userMember = memberList.find(member => member.user_id === currentUser.user_id);
+        setCurrentUserRole(userMember?.role || null);
+      }
     } catch (error) {
       console.error('사용자 역할 확인 실패:', error);
     }
@@ -813,6 +839,18 @@ export default function BoardPage() {
     fetchTasks();
   };
 
+  // 로딩 중일 때 표시
+  if (loading) {
+    return (
+      <div className="h-full bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">업무 목록을 불러오는 중...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-full bg-gray-50">
       {/* 업무 상세 페이지 모달 */}
@@ -1131,9 +1169,10 @@ export default function BoardPage() {
                   onChange={handleChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
                 >
-                  <option value="todo">해야 할 일</option>
-                  <option value="In progress">진행 중</option>
-                  <option value="complete">완료</option>
+                  <option value="todo">📝 할 일</option>
+                  <option value="in_progress">🔄 진행중</option>
+                  <option value="pending">⏸️ 대기</option>
+                  <option value="complete">✅ 완료</option>
                 </select>
               </div>
 

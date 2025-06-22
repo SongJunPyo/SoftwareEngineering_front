@@ -41,6 +41,7 @@ function AllTasksPage() {
     assignee: '',
     parentTask: '',
     priority: 'medium',
+    status: 'todo',
     isParentTask: false,
     selectedTags: [],
   });
@@ -87,6 +88,11 @@ function AllTasksPage() {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then((res) => {
+        console.log('🔍 AllTasksPage API에서 온 실제 업무 데이터:');
+        res.data.forEach(task => {
+          console.log(`ID: ${task.task_id}, 제목: ${task.title}, 상태: "${task.status}" (타입: ${typeof task.status})`);
+        });
+        console.log('🔍 AllTasksPage 고유한 상태값들:', [...new Set(res.data.map(task => task.status))]);
         setTasks(res.data);
       })
       .catch((err) => {
@@ -97,16 +103,17 @@ function AllTasksPage() {
         }
       });
 
-    // 7-2) 프로젝트 멤버 목록 호출 (뷰어 제외)
+    // 7-2) 프로젝트 멤버 목록 호출 (role 정보 포함)
     axios
-      .get(`http://localhost:8005/api/v1/project_members?project_id=${projectId}`, {
+      .get(`http://localhost:8005/api/v1/projects/${projectId}/members`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then((res) => {
-        setMembers(res.data);
+        setMembers(res.data.members || res.data);
         // 현재 사용자의 역할 찾기
         if (currentUser) {
-          const currentMember = res.data.find(member => member.user_id === currentUser.user_id);
+          const memberList = res.data.members || res.data;
+          const currentMember = memberList.find(member => member.user_id === currentUser.user_id);
           if (currentMember) {
             setCurrentUserRole(currentMember.role);
           }
@@ -153,6 +160,16 @@ function AllTasksPage() {
       });
   }, [projectId, navigate, currentProject, taskUpdateTrigger]);
 
+  // 5-1) currentUser가 변경되면 역할 다시 확인
+  useEffect(() => {
+    if (currentUser && members.length > 0) {
+      const currentMember = members.find(member => member.user_id === currentUser.user_id);
+      if (currentMember) {
+        setCurrentUserRole(currentMember.role);
+      }
+    }
+  }, [currentUser, members]);
+
   // 6) 조기 리턴: 아직 프로젝트가 선택되지 않았거나 로딩 중이면
   if (!currentOrg || !currentProject) {
     return <div>프로젝트를 선택하거나, 로딩 중입니다…</div>;
@@ -193,6 +210,7 @@ function AllTasksPage() {
       assignee_id: assigneeId,
       parent_task_id: parentTaskId,
       priority: form.priority,
+      status: form.status,
       project_id: currentProject.projectId,
       is_parent_task: form.isParentTask,
       tag_names: form.selectedTags,
@@ -253,6 +271,7 @@ function AllTasksPage() {
         assignee: '',
         parentTask: '',
         priority: 'medium',
+        status: 'todo',
         isParentTask: false,
         selectedTags: [],
       });
@@ -268,6 +287,23 @@ function AllTasksPage() {
 
   // 10) Task 삭제 함수
   const handleDeleteTask = async (taskId) => {
+    // 삭제할 업무 찾기
+    const taskToDelete = tasks.find(task => task.task_id === taskId);
+    if (!taskToDelete) {
+      alert('업무를 찾을 수 없습니다.');
+      return;
+    }
+
+    // 상위업무인 경우 하위업무 존재 확인
+    if (taskToDelete.is_parent_task) {
+      const childTasks = tasks.filter(task => task.parent_task_id === taskId);
+      if (childTasks.length > 0) {
+        const childTaskNames = childTasks.map(task => task.title).join(', ');
+        alert('⚠️ 하위업무가 있는 상위업무는 삭제할 수 없습니다.\n\n하위업무: ' + childTaskNames + '\n\n먼저 하위업무들을 삭제하거나 다른 상위업무로 이동해주세요.');
+        return;
+      }
+    }
+
     if (!window.confirm('정말로 이 업무를 삭제하시겠습니까?')) return;
 
     try {
@@ -293,6 +329,9 @@ function AllTasksPage() {
   const canModifyTask = (task) => {
     if (!currentUser) return false;
     
+    // 뷰어는 아무것도 수정할 수 없음
+    if (currentUserRole === 'viewer') return false;
+    
     // 담당자는 자신의 업무를 수정할 수 있음
     if (task.assignee_id === currentUser.user_id) return true;
     
@@ -300,7 +339,6 @@ function AllTasksPage() {
     if (currentUserRole === 'owner' || currentUserRole === 'admin') return true;
     
     // 일반 멤버는 자신이 담당한 업무만 수정 가능 (위에서 이미 체크됨)
-    // 뷰어는 아무것도 수정할 수 없음
     return false;
   };
 
@@ -463,9 +501,9 @@ function AllTasksPage() {
               </div>
               <div className="ml-4">
                 <p className="text-sm text-gray-600">진행중</p>
-                <p className="text-2xl font-semibold text-gray-900">{getFilteredAndSortedTasks().filter(t => t.status === 'In progress').length}</p>
+                <p className="text-2xl font-semibold text-gray-900">{getFilteredAndSortedTasks().filter(t => t.status === 'in_progress').length}</p>
                 {(searchTerm || filterAssignee || filterTag || filterStatus || filterPriority || filterTaskType) && (
-                  <p className="text-xs text-gray-400">전체: {tasks.filter(t => t.status === 'In progress').length}</p>
+                  <p className="text-xs text-gray-400">전체: {tasks.filter(t => t.status === 'in_progress').length}</p>
                 )}
               </div>
             </div>
@@ -592,9 +630,10 @@ function AllTasksPage() {
                 className="px-2 py-1.5 border border-gray-200 rounded-md focus:ring-1 focus:ring-blue-500 text-sm"
               >
                 <option value="">상태</option>
-                <option value="todo">대기</option>
-                <option value="In progress">진행중</option>
-                <option value="complete">완료</option>
+                <option value="todo">📝 할 일</option>
+                <option value="in_progress">🔄 진행중</option>
+                <option value="pending">⏸️ 대기</option>
+                <option value="complete">✅ 완료</option>
               </select>
 
               {/* 우선순위 필터 */}
@@ -646,7 +685,10 @@ function AllTasksPage() {
                 )}
                 {filterStatus && (
                   <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded text-xs">
-                    {filterStatus === 'todo' ? '대기' : filterStatus === 'In progress' ? '진행중' : '완료'}
+                    {filterStatus === 'todo' ? '📝 할 일' : 
+                     filterStatus === 'in_progress' ? '🔄 진행중' : 
+                     filterStatus === 'pending' ? '⏸️ 대기' : 
+                     filterStatus === 'complete' ? '✅ 완료' : filterStatus}
                   </span>
                 )}
                 {filterPriority && (
@@ -767,6 +809,22 @@ function AllTasksPage() {
                     <option value="high">🔴 높음</option>
                   </select>
                 </div>
+              </div>
+
+              {/* 상태 선택 */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">상태</label>
+                <select
+                  name="status"
+                  value={form.status}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+                >
+                  <option value="todo">📝 할 일</option>
+                  <option value="in_progress">🔄 진행중</option>
+                  <option value="pending">⏸️ 대기</option>
+                  <option value="complete">✅ 완료</option>
+                </select>
               </div>
 
               {/* 상위업무로 설정 체크박스 */}
@@ -958,12 +1016,14 @@ function AllTasksPage() {
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
                         task.status === 'complete' ? 'bg-green-100 text-green-800' :
-                        task.status === 'In progress' ? 'bg-blue-100 text-blue-800' :
+                        task.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
+                        task.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
                         {task.status === 'complete' ? '✅ 완료' :
-                         task.status === 'In progress' ? '🔄 진행중' :
-                         '📋 대기'}
+                         task.status === 'in_progress' ? '🔄 진행중' :
+                         task.status === 'pending' ? '⏸️ 대기' :
+                         '📝 할 일'}
                       </span>
                     </td>
                     <td className="px-6 py-4">
