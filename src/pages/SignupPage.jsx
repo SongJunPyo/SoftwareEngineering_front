@@ -108,7 +108,13 @@ export default function SignupPage() {
         name: name,
         provider: provider || 'local'
       });
-      if (response.data.message === "회원가입 성공") {
+      
+      if (response.data.message === "회원가입이 완료되었습니다. 이메일 인증을 완료해주세요.") {
+        // 이메일 인증이 필요한 경우
+        alert("회원가입이 완료되었습니다. 이메일을 확인하여 인증을 완료해주세요.");
+        navigate('/login');
+      } else if (response.data.message === "회원가입 성공") {
+        // 기존 로직 (OAuth 회원가입 등)
         // 초대 링크 처리
         try {
           const pendingInvitationStr = localStorage.getItem('pendingInvitation');
@@ -148,6 +154,8 @@ export default function SignupPage() {
           } else {
             setError("이미 존재하는 이메일입니다.");
           }
+        } else if (error.response.status === 500 && error.response.data.detail.includes('이메일 전송')) {
+          setError("이메일 전송에 실패했습니다. 다시 시도해주세요.");
         } else {
           setError("회원가입 중 오류가 발생했습니다.");
         }

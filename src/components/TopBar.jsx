@@ -108,7 +108,9 @@ function TopBar({ user, onLogout }) {
                         className={`border-b pb-1 px-1 cursor-pointer ${!alert.is_read ? 'bg-blue-50' : ''}`}
                         onClick={async () => {
                           await markAsRead(alert.notification_id);
-                          if (alert.channel === 'task' && alert.related_id) {
+                          if (alert.channel === 'invitation' && alert.related_id) {
+                            navigate(`/invite/${alert.related_id}`);
+                          } else if (alert.channel === 'task' && alert.related_id) {
                             navigate(`/main/${alert.related_id}`);
                           } else if (alert.channel === 'project' && alert.related_id) {
                             navigate(`/projects/${alert.related_id}`);

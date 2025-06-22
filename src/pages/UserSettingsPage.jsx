@@ -6,13 +6,14 @@ function UserSettingsPage() {
   const { organizations } = useContext(OrgProjectContext);
   const [passwords, setPasswords] = useState({ current: '', new: '', confirm: '' });
   const [notifications, setNotifications] = useState({
-    emailEnabled: false,
+    emailEnabled: true,
     email: '',
     projectNotifications: {}
   });
   const [provider, setProvider] = useState('');
   const [profileLoading, setProfileLoading] = useState(true);
   const [passwordWarning, setPasswordWarning] = useState('');
+  const [settingsLoading, setSettingsLoading] = useState(false);
 
   // 사용자 provider 정보 불러오기
   useEffect(() => {
@@ -20,6 +21,15 @@ function UserSettingsPage() {
       try {
         const res = await userAPI.getProfile();
         setProvider(res.data.provider || 'local');
+        
+        // 알림 설정도 함께 가져오기
+        if (res.data.email_notifications_enabled !== undefined) {
+          setNotifications(prev => ({
+            ...prev,
+            emailEnabled: res.data.email_notifications_enabled,
+            email: res.data.notification_email || res.data.email || ''
+          }));
+        }
       } catch (e) {
         setProvider('local');
       } finally {
@@ -99,12 +109,18 @@ function UserSettingsPage() {
 
   const handleSaveNotifications = async (e) => {
     e.preventDefault();
+    setSettingsLoading(true);
     try {
-      await userAPI.updateNotifications(notifications);
+      await userAPI.updateNotifications({
+        email_notifications_enabled: notifications.emailEnabled,
+        notification_email: notifications.emailEnabled ? notifications.email : null
+      });
       alert('알림 설정이 저장되었습니다.');
     } catch (error) {
       console.error('알림 설정 저장 중 오류:', error);
       alert('알림 설정 저장 중 오류가 발생했습니다.');
+    } finally {
+      setSettingsLoading(false);
     }
   };
 
@@ -160,18 +176,34 @@ function UserSettingsPage() {
         )}
       </section>
 
-      {/* 알림 설정 (프로젝트별 알림 포함) */}
+      {/* 알림 설정 (이메일 알림 포함) */}
       <section className="bg-white p-6 rounded shadow">
         <h2 className="text-2xl font-semibold mb-4">알림 설정</h2>
         <form onSubmit={handleSaveNotifications} className="space-y-4">
           <div className="flex items-center space-x-2">
-            <input id="emailEnabled" name="emailEnabled" type="checkbox" checked={notifications.emailEnabled} onChange={handleNotificationsChange} />
-            <label htmlFor="emailEnabled">알림 이메일 수신 여부</label>
+            <input 
+              id="emailEnabled" 
+              name="emailEnabled" 
+              type="checkbox" 
+              checked={notifications.emailEnabled} 
+              onChange={handleNotificationsChange} 
+            />
+            <label htmlFor="emailEnabled">이메일 알림 수신</label>
           </div>
           {notifications.emailEnabled && (
             <div className="flex flex-col">
               <label className="mb-1">알림 수신 이메일</label>
-              <input name="email" type="email" value={notifications.email} onChange={handleNotificationsChange} className="border px-3 py-2 rounded" />
+              <input 
+                name="email" 
+                type="email" 
+                value={notifications.email} 
+                onChange={handleNotificationsChange} 
+                className="border px-3 py-2 rounded" 
+                placeholder="알림을 받을 이메일 주소를 입력하세요"
+              />
+              <p className="text-sm text-gray-500 mt-1">
+                비워두면 가입한 이메일로 알림이 전송됩니다.
+              </p>
             </div>
           )}
           <div className="mt-4">
@@ -183,7 +215,12 @@ function UserSettingsPage() {
                   <div className="ml-4 space-y-1">
                     {org.projects.map(proj => (
                       <div key={proj.projectId} className="flex items-center space-x-2">
-                        <input name={proj.projectId} type="checkbox" checked={notifications.projectNotifications[proj.projectId] || false} onChange={handleNotificationsChange} />
+                        <input 
+                          name={proj.projectId} 
+                          type="checkbox" 
+                          checked={notifications.projectNotifications[proj.projectId] || false} 
+                          onChange={handleNotificationsChange} 
+                        />
                         <label>{proj.name}</label>
                       </div>
                     ))}
@@ -192,7 +229,13 @@ function UserSettingsPage() {
               ))}
             </div>
           </div>
-          <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded">저장</button>
+          <button 
+            type="submit" 
+            className="bg-blue-500 text-white px-4 py-2 rounded disabled:opacity-50"
+            disabled={settingsLoading}
+          >
+            {settingsLoading ? '저장 중...' : '저장'}
+          </button>
         </form>
       </section>
 

@@ -288,7 +288,7 @@ export default function BoardPage() {
         const token = localStorage.getItem('access_token');
         if (!token) return;
 
-        const response = await axios.get('http://localhost:8005/api/v1/auth/me', {
+        const response = await axios.get('/api/v1/auth/me', {
           headers: { Authorization: `Bearer ${token}` }
         });
         setCurrentUser(response.data);
@@ -330,7 +330,7 @@ export default function BoardPage() {
   const fetchTasks = async () => {
     try {
       const token = localStorage.getItem('access_token');
-      const response = await axios.get(`http://localhost:8005/api/v1/tasks?project_id=${projectId}`, {
+      const response = await axios.get(`/api/v1/tasks?project_id=${projectId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setTasks(response.data);
@@ -346,7 +346,8 @@ export default function BoardPage() {
   const fetchMembers = async () => {
     try {
       const token = localStorage.getItem('access_token');
-      const response = await axios.get(`http://localhost:8005/api/v1/project_members?project_id=${projectId}`, {
+      console.log(`[DEBUG] Fetching members for project: ${projectId}`);
+      const response = await axios.get(`/api/v1/projects/${projectId}/members`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setMembers(response.data.filter(member => member.role !== 'viewer'));
@@ -358,7 +359,7 @@ export default function BoardPage() {
   const fetchParentTasks = async () => {
     try {
       const token = localStorage.getItem('access_token');
-      const response = await axios.get(`http://localhost:8005/api/v1/parent-tasks?project_id=${projectId}`, {
+      const response = await axios.get(`/api/v1/parent-tasks?project_id=${projectId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setParentTasks(response.data);
@@ -370,7 +371,7 @@ export default function BoardPage() {
   const fetchProjectTags = async () => {
     try {
       const token = localStorage.getItem('access_token');
-      const response = await axios.get(`http://localhost:8005/api/v1/projects/${projectId}/tags`, {
+      const response = await axios.get(`/api/v1/projects/${projectId}/tags`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setProjectTags(response.data);
@@ -382,15 +383,17 @@ export default function BoardPage() {
   const fetchCurrentUserRole = async () => {
     try {
       const token = localStorage.getItem('access_token');
-      const response = await axios.get(`http://localhost:8005/api/v1/project_members?project_id=${projectId}`, {
+      const response = await axios.get(`/api/v1/projects/${projectId}/members`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
       const userId = localStorage.getItem('userId');
-      const userMember = response.data.find(member => member.user_id === parseInt(userId));
+      const membersList = response.data.members || [];
+      const userMember = membersList.find(member => member.user_id === parseInt(userId));
       setCurrentUserRole(userMember?.role || null);
     } catch (error) {
       console.error('사용자 역할 확인 실패:', error);
+      setCurrentUserRole(null);
     }
   };
 
@@ -434,7 +437,7 @@ export default function BoardPage() {
     try {
       const token = localStorage.getItem("access_token");
       await axios.patch(
-        `http://localhost:8005/api/v1/tasks/${taskId}/status`,
+        `/api/v1/tasks/${taskId}/status`,
         { status: newStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -578,7 +581,7 @@ export default function BoardPage() {
     try {
       const token = localStorage.getItem('access_token');
       const res = await axios.post(
-        'http://localhost:8005/api/v1/tasks',
+        '/api/v1/tasks',
         payload,
         {
           headers: { Authorization: `Bearer ${token}` }
@@ -661,7 +664,7 @@ export default function BoardPage() {
 
     try {
       const token = localStorage.getItem('access_token');
-      await axios.delete(`http://localhost:8005/api/v1/tasks/${taskId}`, {
+      await axios.delete(`/api/v1/tasks/${taskId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -708,7 +711,7 @@ export default function BoardPage() {
     if (currentUserRole === 'owner' || currentUserRole === 'admin') return true;
     
     // 일반 멤버는 자신이 담당한 업무만 수정 가능 (위에서 이미 체크됨)
-    return false;
+      return false;
   };
 
   // 필터링 및 정렬된 작업 목록
@@ -804,6 +807,7 @@ export default function BoardPage() {
   // 업무 상세 페이지 열기
   const handleTaskClick = (task) => {
     setOpenTaskId(task.task_id);
+    fetchTasks();
   };
 
   // 업무 상세 페이지 닫기

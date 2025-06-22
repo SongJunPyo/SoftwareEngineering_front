@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext } from 'react';
-import axios from 'axios';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { OrgProjectContext } from '../context/OrgProjectContext';
+import { taskAPI, projectAPI, tagAPI, commentAPI, authAPI } from '../api/api';
 
 export default function TaskDetailPage({
   inner,                // 모달 여부
@@ -45,61 +45,50 @@ export default function TaskDetailPage({
 
   // 상세 조회
   useEffect(() => {
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      alert('로그인 후 이용해주세요.');
-      navigate('/login');
-      return;
-    }
-
-    axios
-      .get(`http://localhost:8005/api/v1/tasks/${taskId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      .then((res) => {
-        setTask(res.data);
-        setDescription(res.data.description || '');
-        // 편집 폼 초기화
+    const fetchTaskDetails = async () => {
+      try {
+        const res = await taskAPI.detail(taskId);
+        const taskData = res.data;
+        
+        setTask(taskData);
+        setDescription(taskData.description || '');
         setEditForm({
-          title: res.data.title || '',
-          assignee_id: res.data.assignee_id || '',
-          status: res.data.status || '',
-          member_ids: res.data.member_ids || [],
-          start_date: res.data.start_date ? res.data.start_date.slice(0, 10) : '',
-          due_date: res.data.due_date ? res.data.due_date.slice(0, 10) : '',
-          parent_task_id: res.data.parent_task_id || '',
-          is_parent_task: res.data.is_parent_task || false,
-          tag_names: res.data.tag_names || []
+          title: taskData.title || '',
+          assignee_id: taskData.assignee_id || '',
+          status: taskData.status || '',
+          member_ids: taskData.member_ids || [],
+          start_date: taskData.start_date ? taskData.start_date.slice(0, 10) : '',
+          due_date: taskData.due_date ? taskData.due_date.slice(0, 10) : '',
+          parent_task_id: taskData.parent_task_id || '',
+          is_parent_task: taskData.is_parent_task || false,
+          tag_names: taskData.tag_names || []
         });
-        setLoading(false);
-        // 프로젝트 멤버 목록 가져오기
-        fetchProjectMembers(res.data.project_id);
-        // 프로젝트 업무 목록 가져오기 (상위 업무 선택용)
-        fetchProjectTasks(res.data.project_id);
-        // 프로젝트 태그 목록 가져오기
-        fetchProjectTags(res.data.project_id);
-        // 현재 사용자 정보 가져오기
-        fetchCurrentUser();
-      })
-      .catch((err) => {
+
+        // 연관 데이터 병렬로 가져오기
+        await Promise.all([
+            fetchProjectMembers(taskData.project_id),
+            fetchProjectTasks(taskData.project_id),
+            fetchProjectTags(taskData.project_id),
+            fetchCurrentUser()
+        ]);
+
+      } catch (err) {
         console.error('Task 상세 조회 실패:', err);
         setError(err.response?.data?.detail || '업무 정보를 불러오는 중 오류가 발생했습니다.');
+      } finally {
         setLoading(false);
-      });
-  }, [taskId, navigate]);
+      }
+    };
+    
+    fetchTaskDetails();
+  }, [taskId]);
 
   // 프로젝트 멤버 목록 가져오기
   const fetchProjectMembers = async (projectId) => {
-    const token = localStorage.getItem('access_token');
-    if (!token) return;
-    
     try {
-      const res = await axios.get(`http://localhost:8005/api/v1/projects/${projectId}/members`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await projectAPI.getMembers(projectId);
       setProjectMembers(res.data.members || []);
       
-      // 현재 사용자의 역할 찾기
       if (currentUser) {
         const currentMember = res.data.members.find(member => member.user_id === currentUser.user_id);
         if (currentMember) {
@@ -113,13 +102,8 @@ export default function TaskDetailPage({
 
   // 프로젝트 업무 목록 가져오기 (상위업무만)
   const fetchProjectTasks = async (projectId) => {
-    const token = localStorage.getItem('access_token');
-    if (!token) return;
-    
     try {
-      const res = await axios.get(`http://localhost:8005/api/v1/parent-tasks?project_id=${projectId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await taskAPI.getParentTasks(projectId);
       setProjectTasks(res.data || []);
     } catch (err) {
       console.error('상위업무 목록 조회 실패:', err);
@@ -128,13 +112,8 @@ export default function TaskDetailPage({
 
   // 프로젝트 태그 목록 가져오기
   const fetchProjectTags = async (projectId) => {
-    const token = localStorage.getItem('access_token');
-    if (!token) return;
-    
     try {
-      const res = await axios.get(`http://localhost:8005/api/v1/projects/${projectId}/tags`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await tagAPI.list(projectId);
       setProjectTags(res.data || []);
     } catch (err) {
       console.error('프로젝트 태그 목록 조회 실패:', err);
@@ -143,30 +122,18 @@ export default function TaskDetailPage({
 
   // 현재 사용자 정보 가져오기
   const fetchCurrentUser = async () => {
-    const token = localStorage.getItem('access_token');
-    if (!token) return;
-    
     try {
-      // JWT 토큰에서 user_id 추출
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      setCurrentUser({ user_id: parseInt(payload.sub) });
-    } catch (err) {
-      console.error('토큰에서 사용자 정보 추출 실패:', err);
-      try {
-        const res = await axios.get('http://localhost:8005/api/v1/auth/me', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setCurrentUser(res.data);
-      } catch (apiErr) {
-        console.error('현재 사용자 정보 조회 실패:', apiErr);
-      }
+      const res = await authAPI.me();
+      setCurrentUser(res.data);
+    } catch (apiErr) {
+      console.error('현재 사용자 정보 조회 실패:', apiErr);
     }
   };
 
   // 댓글 목록 불러오기
   const fetchComments = async () => {
     try {
-      const res = await axios.get(`http://localhost:8005/comments/task/${taskId}`);
+      const res = await commentAPI.listByTask(taskId);
       setComments(res.data);
     } catch (err) {
       console.error('댓글 불러오기 실패:', err);
@@ -190,18 +157,10 @@ export default function TaskDetailPage({
   // 댓글 등록
   const handleAddComment = async () => {
     if (!newComment.trim()) return;
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      alert('로그인 후 이용해주세요.');
-      navigate('/login');
-      return;
-    }
     try {
-      await axios.post('http://localhost:8005/comments/', {
+      await commentAPI.create({
         task_id: taskId,
         content: newComment,
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       setNewComment('');
       fetchComments();
@@ -247,115 +206,27 @@ export default function TaskDetailPage({
   // 편집 내용 저장
   const handleEditSave = async () => {
     if (!task) return;
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      alert('로그인 후 이용해주세요.');
-      navigate('/login');
-      return;
-    }
-    
     try {
-      const updateData = {};
-      
-      // 변경된 필드만 포함
-      if (editForm.title !== task.title) {
-        updateData.title = editForm.title;
-      }
-      if (parseInt(editForm.assignee_id) !== task.assignee_id) {
-        updateData.assignee_id = parseInt(editForm.assignee_id);
-      }
-      if (editForm.status !== task.status) {
-        updateData.status = editForm.status;
-      }
-      if (editForm.start_date && editForm.start_date !== task.start_date?.slice(0, 10)) {
-        updateData.start_date = editForm.start_date + 'T00:00:00.000Z';
-      }
-      if (editForm.due_date && editForm.due_date !== task.due_date?.slice(0, 10)) {
-        updateData.due_date = editForm.due_date + 'T00:00:00.000Z';
-      }
-      if (parseInt(editForm.parent_task_id) !== task.parent_task_id || (!editForm.parent_task_id && task.parent_task_id)) {
-        updateData.parent_task_id = editForm.parent_task_id ? parseInt(editForm.parent_task_id) : null;
-      }
-      if (editForm.is_parent_task !== task.is_parent_task) {
-        updateData.is_parent_task = editForm.is_parent_task;
-      }
-      
-      // 멤버는 항상 업데이트 (배열 비교가 복잡하므로)
-      updateData.member_ids = editForm.member_ids.map(id => parseInt(id));
-      
-      // 태그도 항상 업데이트 (배열 비교가 복잡하므로)
-      updateData.tag_names = editForm.tag_names;
-      
-      const patchResponse = await axios.patch(
-        `http://localhost:8005/api/v1/tasks/${taskId}`,
-        updateData,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      
-      console.log('🔄 Task 수정 완료:', patchResponse.data);
-      alert('업무 정보가 저장되었습니다.');
-      
-      // AllTasksPage 업데이트 트리거
-      triggerTaskUpdate();
-      
-      // 페이지 데이터 재로드
-      setLoading(true);
-      const res = await axios.get(
-        `http://localhost:8005/api/v1/tasks/${taskId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const res = await taskAPI.update(taskId, editForm);
       setTask(res.data);
-      setDescription(res.data.description || '');
-      setEditForm({
-        title: res.data.title || '',
-        assignee_id: res.data.assignee_id || '',
-        status: res.data.status || '',
-        member_ids: res.data.member_ids || [],
-        start_date: res.data.start_date ? res.data.start_date.slice(0, 10) : '',
-        due_date: res.data.due_date ? res.data.due_date.slice(0, 10) : '',
-        parent_task_id: res.data.parent_task_id || '',
-        tag_names: res.data.tag_names || []
-      });
       setIsEditing(false);
-      setLoading(false);
+      triggerTaskUpdate();
     } catch (err) {
-      console.error('저장 실패:', err);
-      alert(err.response?.data?.detail || '업무 정보 저장 중 오류가 발생했습니다.');
+      console.error('업무 수정 실패:', err);
+      alert(err.response?.data?.detail || '업무 수정에 실패했습니다.');
     }
   };
 
   const handleSave = async () => {
     if (!task) return;
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      alert('로그인 후 이용해주세요.');
-      navigate('/login');
-      return;
-    }
     try {
-      const patchResponse = await axios.patch(
-        `http://localhost:8005/api/v1/tasks/${taskId}`,
-        { description },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      
-      console.log('🔄 TaskDetailPage에서 Task 수정 완료:', patchResponse.data);
-      alert('설명이 저장되었습니다.');
-      
-      // AllTasksPage 업데이트 트리거
-      triggerTaskUpdate();
-      
-      setLoading(true);
-      const res = await axios.get(
-        `http://localhost:8005/api/v1/tasks/${taskId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const res = await taskAPI.updateDescription(taskId, { description });
       setTask(res.data);
       setDescription(res.data.description || '');
-      setLoading(false);
+      triggerTaskUpdate();
     } catch (err) {
-      console.error('저장 실패:', err);
-      alert(err.response?.data?.detail || '업무 정보 저장 중 오류가 발생했습니다.');
+      console.error('업무 설명 저장 실패:', err);
+      alert(err.response?.data?.detail || '업무 설명 저장에 실패했습니다.');
     }
   };
 
@@ -371,40 +242,24 @@ export default function TaskDetailPage({
   };
   // 댓글 수정 저장
   const handleSaveEdit = async (comment_id) => {
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      alert('로그인 후 이용해주세요.');
-      navigate('/login');
-      return;
-    }
     try {
-      await axios.patch(`http://localhost:8005/comments/${comment_id}`, {
-        content: editingContent,
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await commentAPI.update(comment_id, editingContent);
       setEditingCommentId(null);
       setEditingContent('');
       fetchComments();
     } catch (err) {
+      console.error('댓글 수정 실패:', err);
       alert('댓글 수정에 실패했습니다.');
     }
   };
   // 댓글 삭제
   const handleDeleteComment = async (comment_id) => {
-    if (!window.confirm('정말 삭제하시겠습니까?')) return;
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      alert('로그인 후 이용해주세요.');
-      navigate('/login');
-      return;
-    }
+    if (!window.confirm('댓글을 삭제하시겠습니까?')) return;
     try {
-      await axios.delete(`http://localhost:8005/comments/${comment_id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await commentAPI.delete(comment_id);
       fetchComments();
     } catch (err) {
+      console.error('댓글 삭제 실패:', err);
       alert('댓글 삭제에 실패했습니다.');
     }
   };
@@ -614,10 +469,7 @@ export default function TaskDetailPage({
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-bold">상세 정보</h2>
               {!isEditing ? (
-                currentUser && task && (
-                  (currentUser.user_id === task.assignee_id) || 
-                  (currentUserRole === 'owner' || currentUserRole === 'admin')
-                ) && currentUserRole !== 'viewer' ? (
+                currentUser && task && currentUser.user_id === task.assignee_id && currentUserRole !== 'viewer' ? (
                   <button
                     onClick={handleEditStart}
                     className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded text-sm"
@@ -626,7 +478,7 @@ export default function TaskDetailPage({
                   </button>
                 ) : (
                   <span className="text-gray-500 text-sm">
-                    {currentUserRole === 'viewer' ? '뷰어는 편집할 수 없습니다' : '담당자이거나 소유자/관리자만 편집 가능'}
+                    {currentUserRole === 'viewer' ? '뷰어는 편집할 수 없습니다' : '담당자만 편집 가능'}
                   </span>
                 )
               ) : (

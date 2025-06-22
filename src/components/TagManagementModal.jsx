@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { tagAPI } from '../api/api';
 
 export default function TagManagementModal({ projectId, onClose, onTagChange }) {
   const [tags, setTags] = useState([]);
@@ -11,10 +11,7 @@ export default function TagManagementModal({ projectId, onClose, onTagChange }) 
   // 태그 목록 조회
   const fetchTags = async () => {
     try {
-      const token = localStorage.getItem('access_token');
-      const response = await axios.get(`http://localhost:8005/api/v1/projects/${projectId}/tags`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await tagAPI.list(projectId);
       setTags(response.data);
     } catch (error) {
       console.error('태그 목록 조회 실패:', error);
@@ -39,13 +36,7 @@ export default function TagManagementModal({ projectId, onClose, onTagChange }) 
 
     setLoading(true);
     try {
-      const token = localStorage.getItem('access_token');
-      await axios.post(`http://localhost:8005/api/v1/projects/${projectId}/tags`, {
-        tag_name: newTagName.trim(),
-        project_id: projectId
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await tagAPI.create(projectId, newTagName.trim());
       
       setNewTagName('');
       await fetchTags(); // 목록 새로고침
@@ -73,12 +64,7 @@ export default function TagManagementModal({ projectId, onClose, onTagChange }) 
 
     setLoading(true);
     try {
-      const token = localStorage.getItem('access_token');
-      await axios.put(`http://localhost:8005/api/v1/projects/${projectId}/tags/${encodeURIComponent(oldTagName)}`, {
-        tag_name: editingTagName.trim()
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await tagAPI.update(projectId, oldTagName, editingTagName.trim());
       
       setEditingTag(null);
       setEditingTagName('');
@@ -106,10 +92,7 @@ export default function TagManagementModal({ projectId, onClose, onTagChange }) 
 
     setLoading(true);
     try {
-      const token = localStorage.getItem('access_token');
-      await axios.delete(`http://localhost:8005/api/v1/projects/${projectId}/tags/${encodeURIComponent(tagName)}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await tagAPI.delete(projectId, tagName);
       
       await fetchTags(); // 목록 새로고침
       onTagChange && onTagChange(); // 부모 컴포넌트에 변경 알림

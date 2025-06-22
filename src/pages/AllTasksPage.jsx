@@ -1,8 +1,7 @@
 import React, { useContext, useState, useEffect } from 'react';
-import axios from 'axios';
 import { OrgProjectContext } from '../context/OrgProjectContext';
-import { useNavigate } from 'react-router-dom';
-import { Link } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import { taskAPI, projectAPI, tagAPI, authAPI } from '../api/api';
 import TaskDetailPage from './TaskDetailPage';
 import Modal from '../components/Task_Modal';
 import TagManagementModal from '../components/TagManagementModal';
@@ -54,12 +53,7 @@ function AllTasksPage() {
   useEffect(() => {
     const fetchCurrentUser = async () => {
       try {
-        const token = localStorage.getItem('access_token');
-        if (!token) return;
-
-        const response = await axios.get('http://localhost:8005/api/v1/auth/me', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const response = await authAPI.me();
         setCurrentUser(response.data);
       } catch (error) {
         console.error('현재 사용자 정보 가져오기 실패:', error);
@@ -82,10 +76,7 @@ function AllTasksPage() {
     }
 
     // 7-1) 작업 목록 호출
-    axios
-      .get(`http://localhost:8005/api/v1/tasks?project_id=${projectId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+    taskAPI.list({ project_id: projectId })
       .then((res) => {
         setTasks(res.data);
       })
@@ -98,18 +89,15 @@ function AllTasksPage() {
       });
 
     // 7-2) 프로젝트 멤버 목록 호출 (뷰어 제외)
-    axios
-      .get(`http://localhost:8005/api/v1/project_members?project_id=${projectId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+    projectAPI.getMembers(projectId)
       .then((res) => {
         setMembers(res.data);
         // 현재 사용자의 역할 찾기
         if (currentUser) {
           const currentMember = res.data.find(member => member.user_id === currentUser.user_id);
-          if (currentMember) {
-            setCurrentUserRole(currentMember.role);
-          }
+        if (currentMember) {
+          setCurrentUserRole(currentMember.role);
+        }
         }
       })
       .catch((err) => {
@@ -121,10 +109,7 @@ function AllTasksPage() {
       });
 
     // 7-3) 상위업무 목록 호출
-    axios
-      .get(`http://localhost:8005/api/v1/parent-tasks?project_id=${projectId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+    taskAPI.getParentTasks(projectId)
       .then((res) => {
         setParentTasks(res.data);
       })
@@ -137,10 +122,7 @@ function AllTasksPage() {
       });
 
     // 7-4) 프로젝트 태그 목록 호출
-    axios
-      .get(`http://localhost:8005/api/v1/projects/${projectId}/tags`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+    tagAPI.list(projectId)
       .then((res) => {
         setProjectTags(res.data);
       })
@@ -219,16 +201,9 @@ function AllTasksPage() {
     }
 
     try {
-      const token = localStorage.getItem('access_token');
       console.log('🚀 Task 생성 API 호출:', payload);
       
-      const res = await axios.post(
-        'http://localhost:8005/api/v1/tasks',
-        payload,
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
+      const res = await taskAPI.create(payload);
 
       console.log('✅ Task 생성 API 응답:', res.data);
       
@@ -271,10 +246,7 @@ function AllTasksPage() {
     if (!window.confirm('정말로 이 업무를 삭제하시겠습니까?')) return;
 
     try {
-      const token = localStorage.getItem('access_token');
-      await axios.delete(`http://localhost:8005/api/v1/tasks/${taskId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await taskAPI.delete(taskId);
       
       // WebSocket 이벤트가 오지 않을 경우를 대비해 즉시 로컬 상태 업데이트
       setTasks(prev => {
@@ -286,6 +258,10 @@ function AllTasksPage() {
     } catch (err) {
       console.error('업무 삭제 실패:', err);
       alert(err.response?.data?.detail || '업무 삭제 중 오류가 발생했습니다.');
+      if (err.response?.status === 401) {
+        localStorage.removeItem('access_token');
+        navigate('/login');
+      }
     }
   };
 
@@ -523,25 +499,25 @@ function AllTasksPage() {
               
               {/* 정렬 컨트롤 */}
               <div className="flex items-center gap-2">
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
                   className="px-2 py-2 border border-gray-200 rounded-md focus:ring-1 focus:ring-blue-500 text-sm"
-                >
+              >
                   <option value="task_id">ID순</option>
                   <option value="updated_at">수정일순</option>
                   <option value="start_date">시작일순</option>
                   <option value="due_date">마감일순</option>
-                </select>
-                <button
-                  onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+              </select>
+              <button
+                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
                   className="p-2 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors"
                   title={sortOrder === 'asc' ? '오름차순' : '내림차순'}
-                >
-                  <svg className={`w-4 h-4 transition-transform ${sortOrder === 'desc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              >
+                <svg className={`w-4 h-4 transition-transform ${sortOrder === 'desc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                  </svg>
-                </button>
+                </svg>
+              </button>
               </div>
 
               {/* 초기화 버튼 */}
@@ -552,9 +528,9 @@ function AllTasksPage() {
                 초기화
               </button>
             </div>
-          </div>
+            </div>
 
-          {/* 필터 섹션 */}
+            {/* 필터 섹션 */}
           <div className="p-3">
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
               {/* 담당자 필터 */}
@@ -601,7 +577,7 @@ function AllTasksPage() {
               <select
                 value={filterPriority}
                 onChange={(e) => setFilterPriority(e.target.value)}
-                 className="text-sm border border-gray-300 rounded px-3 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="text-sm border border-gray-300 rounded px-3 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="">모든 우선순위</option>
                 <option value="high">높음</option>
@@ -928,14 +904,14 @@ function AllTasksPage() {
                     <td className="px-6 py-4">
                       <div className="flex items-center">
                         <div>
-                          <div className="text-sm font-semibold text-gray-900 hover:text-blue-600 transition-colors">
-                            {task.title}
-                          </div>
-                          {task.is_parent_task && (
-                            <div className="text-xs text-gray-500 mt-1">
-                              📋 상위업무
+                            <div className="text-sm font-semibold text-gray-900 hover:text-blue-600 transition-colors">
+                              {task.title}
                             </div>
-                          )}
+                            {task.is_parent_task && (
+                            <div className="text-xs text-gray-500 mt-1">
+                                📋 상위업무
+                            </div>
+                            )}
                           {task.parent_task_id && (
                             <div className="text-xs text-gray-500 mt-1">
                               📎 하위 업무 → {task.parent_task_title ? `${task.parent_task_title}(#${task.parent_task_id})` : `#${task.parent_task_id}`}
@@ -1052,9 +1028,7 @@ function AllTasksPage() {
           onTagChange={() => {
             // 태그가 변경되면 프로젝트 태그 목록을 새로고침
             const token = localStorage.getItem('access_token');
-            axios.get(`http://localhost:8005/api/v1/projects/${projectId}/tags`, {
-              headers: { Authorization: `Bearer ${token}` },
-            }).then((res) => {
+            tagAPI.list(projectId).then((res) => {
               setProjectTags(res.data);
             }).catch((err) => {
               console.error('프로젝트 태그 목록 새로고침 실패:', err);

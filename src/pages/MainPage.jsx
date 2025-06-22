@@ -9,7 +9,7 @@ import AllTasksPage from './AllTasksPage';
 import LogPage from './LogPage';
 import ProjectMembersAvatars from '../components/ProjectMembersAvatars';
 import MemberModal from '../components/MemberModal';
-import { projectAPI } from '../api/api';
+import { projectAPI, dashboardAPI } from '../api/api';
 
 const TAB_LIST = [
   { key: 'main', label: 'main' },
@@ -27,6 +27,28 @@ export default function MainPage() {
   const [showModal, setShowModal] = useState(false);
   const [members, setMembers] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
+  const [dashboardData, setDashboardData] = useState(null);
+
+  // 대시보드 데이터 가져오기
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      if (project?.projectId) {
+        try {
+          console.log('Fetching dashboard data for project:', project.projectId);
+          const response = await dashboardAPI.getDashboardData(project.projectId);
+          setDashboardData(response.data);
+          console.log('Dashboard data fetched:', response.data);
+        } catch (error) {
+          console.error('대시보드 데이터 가져오기 실패:', error);
+          setDashboardData(null);
+        }
+      }
+    };
+
+    if (activeTab === 'main') {
+      fetchDashboardData();
+    }
+  }, [project?.projectId, activeTab]);
 
   // 현재 사용자 정보 가져오기
   useEffect(() => {
@@ -102,7 +124,7 @@ export default function MainPage() {
   let content;
   switch (activeTab) {
     case 'main':
-      content = <DashboardGrid />;
+      content = <DashboardGrid dashboardData={dashboardData} />;
       break;
     case 'board':
       content = <BoardPage inner />;
@@ -117,7 +139,7 @@ export default function MainPage() {
       content = <LogPage inner />;
       break;
     default:
-      content = <DashboardGrid />;
+      content = <DashboardGrid dashboardData={dashboardData} />;
   }
 
   return (
@@ -168,7 +190,7 @@ export default function MainPage() {
 
 const TabNav = styled.nav`
   display: flex;
-  border-bottom: 1px solid #e5e7eb; /* Tailwind’s gray-200 */
+  border-bottom: 1px solid #e5e7eb; /* Tailwind's gray-200 */
   margin-bottom: 2rem; /* mb-8 */
 `;
 

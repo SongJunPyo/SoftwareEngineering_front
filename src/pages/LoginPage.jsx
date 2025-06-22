@@ -236,10 +236,10 @@ function LoginPage({ onLogin }) {
   };
 
   // Email/Password login
-  const handleEmailLogin = async (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
-
+    
     const { email, password } = formData;
 
     // Validation
@@ -258,15 +258,33 @@ function LoginPage({ onLogin }) {
         email: email.trim(),
         password: password
       });
-
+      
       if (response.data?.access_token) { // 토큰이 있으면 로그인 성공 함수 호출
         handleLoginSuccess(response.data);
       } else {
         throw new Error('서버에서 올바른 로그인 정보를 받지 못했습니다.');
       }
     } catch (error) {
-      console.error('로그인 오류:', error);
-      setError(getErrorMessage(error));
+      console.error('Login error:', error.response?.data || error);
+      
+      if (error.response?.status === 401) {
+        const detail = error.response.data.detail;
+        if (detail.includes('이메일 인증이 필요합니다')) {
+          setError("이메일 인증이 필요합니다. 이메일을 확인하여 인증을 완료해주세요.");
+        } else {
+          setError(detail || "이메일 또는 비밀번호가 일치하지 않습니다.");
+        }
+      } else if (error.response?.status === 409) {
+        setError(error.response.data.detail || "이미 가입된 이메일입니다.");
+      } else if (error.response?.status === 422) {
+        setError("입력 정보가 올바르지 않습니다.");
+      } else if (error.response?.status === 429) {
+        setError("너무 많은 로그인 시도입니다. 잠시 후 다시 시도해주세요.");
+      } else if (error.response?.status === 500) {
+        setError("서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+      } else {
+        setError("로그인 중 오류가 발생했습니다.");
+      }
     }
   };
 
@@ -475,7 +493,7 @@ function LoginPage({ onLogin }) {
               <LoginForm
                 formData={formData}
                 error={error}
-                onSubmit={handleEmailLogin}
+                onSubmit={handleLogin}
                 onUpdate={updateFormData}
               />
               
