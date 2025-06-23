@@ -721,6 +721,9 @@ export default function BoardPage() {
       
       handleCloseModal();
 
+      // 업무 목록 즉시 새로고침
+      fetchTasks();
+
       // 폼 초기화
       setForm({
         title: '',
