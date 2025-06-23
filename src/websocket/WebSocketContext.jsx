@@ -338,16 +338,43 @@ export const WebSocketProvider = ({ children }) => {
     };
   }, [disconnect]);
 
-  // 토큰 변경 감지
+  // 토큰 변경 감지 - storage 이벤트와 주기적 체크 추가
   useEffect(() => {
-    const token = localStorage.getItem('access_token');
-    if (token && token !== userTokenRef.current) {
-      if (connectionStatus === CONNECTION_STATUS.DISCONNECTED) {
-        connect(token);
+    const checkTokenAndConnect = () => {
+      const token = localStorage.getItem('access_token');
+      console.log('🔍 WebSocket 토큰 체크:', { token: token ? token.substring(0, 20) + '...' : null, current: userTokenRef.current ? userTokenRef.current.substring(0, 20) + '...' : null, status: connectionStatus });
+      
+      if (token && token !== userTokenRef.current) {
+        if (connectionStatus === CONNECTION_STATUS.DISCONNECTED) {
+          console.log('🚀 WebSocket 연결 시작 - 토큰 변경 감지');
+          connect(token);
+        }
+      } else if (!token && connectionStatus !== CONNECTION_STATUS.DISCONNECTED) {
+        console.log('🔌 WebSocket 연결 종료 - 토큰 없음');
+        disconnect();
       }
-    } else if (!token && connectionStatus !== CONNECTION_STATUS.DISCONNECTED) {
-      disconnect();
-    }
+    };
+
+    // 즉시 체크
+    checkTokenAndConnect();
+
+    // storage 이벤트 리스너 (다른 탭에서의 변경)
+    const handleStorageChange = (e) => {
+      if (e.key === 'access_token') {
+        console.log('🔄 Storage 이벤트 - 토큰 변경:', e.newValue ? 'token set' : 'token removed');
+        checkTokenAndConnect();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+
+    // 주기적 체크 (같은 탭에서의 변경 감지)
+    const intervalId = setInterval(checkTokenAndConnect, 1000);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(intervalId);
+    };
   }, [connect, disconnect, connectionStatus]);
 
   const contextValue = {

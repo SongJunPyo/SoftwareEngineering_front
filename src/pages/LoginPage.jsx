@@ -85,8 +85,7 @@ function LoginPage({ onLogin }) {
     email: "",
     name: "",
     extraName: "",
-    extraPassword: "",
-    extraPasswordConfirm: "",
+    accessToken: "",
     error: ""
   });
 
@@ -427,6 +426,7 @@ function LoginPage({ onLogin }) {
               email,
               name: name || "",
               extraName: name || "",
+              accessToken: accessToken,
               error: ""
             });
           }
@@ -480,26 +480,19 @@ function LoginPage({ onLogin }) {
     e.preventDefault();
     setGoogleSignup(prev => ({ ...prev, error: "" }));
     
-    const { extraName, extraPassword, extraPasswordConfirm } = googleSignup;
+    const { extraName } = googleSignup;
 
     // Validation
-    if (!extraName.trim() || !extraPassword || !extraPasswordConfirm) {
-      setGoogleSignup(prev => ({ ...prev, error: "모든 필드를 입력해주세요." }));
-      return;
-    }
-    
-    const passwordErrors = validatePassword(extraPassword, extraPasswordConfirm);
-    if (passwordErrors.length > 0) {
-      setGoogleSignup(prev => ({ ...prev, error: passwordErrors[0] }));
+    if (!extraName.trim()) {
+      setGoogleSignup(prev => ({ ...prev, error: "이름을 입력해주세요." }));
       return;
     }
 
     try {
-      const response = await oauthAPI.googleRegister({
+      const response = await oauthAPI.google({
+        access_token: googleSignup.accessToken,
         email: googleSignup.email,
-        name: extraName.trim(),
-        password: extraPassword,
-        password_confirm: extraPasswordConfirm
+        name: extraName.trim()
       });
 
       if (response.data?.access_token) {

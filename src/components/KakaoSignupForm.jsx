@@ -1,13 +1,13 @@
 import React from 'react';
 
-function GoogleSignupForm({ googleSignup, onSubmit, onUpdate }) {
-  const { email, extraName, error } = googleSignup;
+function KakaoSignupForm({ kakaoSignup, onSubmit, onUpdate }) {
+  const { email, extraName, error } = kakaoSignup;
 
   return (
     <form className="w-full" onSubmit={onSubmit}>
-      <div className="mb-4 text-lg font-bold">구글 계정으로 가입</div>
+      <div className="mb-4 text-lg font-bold">카카오 계정으로 가입</div>
       <div className="mb-4 text-sm text-gray-600">
-        구글 계정으로 가입하시면 별도의 비밀번호 없이 구글 로그인만으로 이용하실 수 있습니다.
+        카카오 계정으로 가입하시면 별도의 비밀번호 없이 카카오 로그인만으로 이용하실 수 있습니다.
       </div>
       
       <input
@@ -33,12 +33,12 @@ function GoogleSignupForm({ googleSignup, onSubmit, onUpdate }) {
       
       <button 
         type="submit" 
-        className="bg-blue-500 text-white px-4 py-2 w-full rounded hover:bg-blue-600"
+        className="bg-yellow-500 text-white px-4 py-2 w-full rounded hover:bg-yellow-600"
       >
-        구글 계정으로 가입하기
+        카카오 계정으로 가입하기
       </button>
     </form>
   );
 }
 
-export default GoogleSignupForm; 
+export default KakaoSignupForm;

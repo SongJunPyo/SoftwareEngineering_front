@@ -87,10 +87,8 @@ export const API_ENDPOINTS = {
   // OAuth 관련
   OAUTH: {
     KAKAO: `${API_VERSION}/oauth/kakao`,
-    KAKAO_REGISTER: `${API_VERSION}/oauth/kakao/register`,
     NAVER: `${API_VERSION}/oauth/naver`,
     GOOGLE: `${API_VERSION}/oauth/google`,
-    GOOGLE_REGISTER: `${API_VERSION}/oauth/google/register`,
   },
   
   // 워크스페이스 관리
@@ -209,11 +207,9 @@ export const authAPI = {
 };
 
 export const oauthAPI = {
-  kakao: (code) => apiClient.post(API_ENDPOINTS.OAUTH.KAKAO, { code }),
-  kakaoRegister: (userData) => apiClient.post(API_ENDPOINTS.OAUTH.KAKAO_REGISTER, userData),
+  kakao: (data) => apiClient.post(API_ENDPOINTS.OAUTH.KAKAO, data),
   naver: (code, state) => apiClient.post(API_ENDPOINTS.OAUTH.NAVER, { code, state }),
   google: (tokenData) => apiClient.post(API_ENDPOINTS.OAUTH.GOOGLE, tokenData),
-  googleRegister: (userData) => apiClient.post(API_ENDPOINTS.OAUTH.GOOGLE_REGISTER, userData),
 };
 
 export const workspaceAPI = {
