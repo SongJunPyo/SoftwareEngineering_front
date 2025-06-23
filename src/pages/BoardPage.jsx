@@ -705,8 +705,16 @@ export default function BoardPage() {
       status: form.status,
     };
 
+    console.log('📝 업무 생성 요청 데이터:', {
+      title: payload.title,
+      status: payload.status,
+      priority: payload.priority,
+      assignee_id: payload.assignee_id,
+      project_id: payload.project_id,
+      is_parent_task: payload.is_parent_task
+    });
+
     try {
-      const token = localStorage.getItem('access_token');
       const res = await taskAPI.create(payload);
 
       const newTask = res.data;
@@ -787,7 +795,6 @@ export default function BoardPage() {
     if (!window.confirm(confirmMessage)) return;
 
     try {
-      const token = localStorage.getItem('access_token');
       await taskAPI.delete(taskId);
       
       setTasks(prev => {
@@ -999,7 +1006,7 @@ export default function BoardPage() {
             {/* 뷰어가 아닌 경우에만 업무 추가 버튼 표시 */}
             {currentUserRole !== 'viewer' && (
               <button
-                onClick={handleOpenModal}
+                onClick={() => handleOpenModal('todo')}
                 className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 flex items-center gap-2"
               >
                 <FiPlus size={18} /> 업무 추가
