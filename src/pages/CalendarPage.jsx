@@ -9,6 +9,11 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import TaskDetailPage from './TaskDetailPage';
 import Modal from '../components/Task_Modal';
+import { 
+  TASK_STATUS, 
+  STATUS_CONFIG_CALENDAR, 
+  STATUS_FILTER_OPTIONS 
+} from '../constants/taskStatus';
 
 function CalendarContent() {
   const { organizations, selectedOrgIndex, selectedProjectIndex, taskUpdateTrigger, triggerTaskUpdate } = useContext(OrgProjectContext);
@@ -42,13 +47,8 @@ function CalendarContent() {
   const project = org ? org.projects[selectedProjectIndex] : null;
   const projectId = project?.projectId;
 
-  // 상태별 설정
-  const statusConfig = {
-    todo: { label: "📝 할 일", color: "#6b7280" },
-    in_progress: { label: "🔄 진행중", color: "#3b82f6" },
-    complete: { label: "✅ 완료", color: "#10b981" },
-    pending: { label: "⏸️ 대기", color: "#f59e0b" }
-  };
+  // 상태별 설정 (공통 상수 사용)
+  const statusConfig = STATUS_CONFIG_CALENDAR;
 
   // 우선순위별 색상
   const priorityColors = {
@@ -369,7 +369,7 @@ function CalendarContent() {
             <option value="">모든 상태</option>
             <option value="todo">📝 할 일</option>
             <option value="in_progress">🔄 진행중</option>
-            <option value="done">✅ 완료</option>
+            <option value="complete">✅ 완료</option>
             <option value="pending">⏸️ 대기</option>
           </select>
 

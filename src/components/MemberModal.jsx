@@ -15,6 +15,7 @@ export default function MemberModal({ members, onClose, projectId, currentUser, 
   const [actionLoading, setActionLoading] = useState({});
   const [invitations, setInvitations] = useState([]);
   const [invitationsLoading, setInvitationsLoading] = useState(false);
+  const [roleGuideExpanded, setRoleGuideExpanded] = useState(false);
 
   const currentUserMember = members?.find(member => member.email === currentUser?.email);
   const canManageMembers = currentUserMember?.role === 'owner' || currentUserMember?.role === 'admin';
@@ -158,9 +159,15 @@ export default function MemberModal({ members, onClose, projectId, currentUser, 
       return;
     }
     
-    // 🔒 소유자/관리자 권한은 변경 불가
-    if (member.role === 'owner' || member.role === 'admin') {
-      alert('소유자와 관리자의 권한은 변경할 수 없습니다.');
+    // 🔒 다른 소유자 권한은 변경 불가
+    if (member.role === 'owner') {
+      alert('다른 소유자의 권한은 변경할 수 없습니다.');
+      return;
+    }
+    
+    // 🔒 관리자 권한 변경은 소유자만 가능
+    if (member.role === 'admin' && !isOwner) {
+      alert('소유자만 관리자의 권한을 변경할 수 있습니다.');
       return;
     }
     
@@ -276,9 +283,11 @@ export default function MemberModal({ members, onClose, projectId, currentUser, 
                     (!isCurrentUser || isOwner) && 
                     !(isAdmin && member.role === 'admin'); // 관리자는 다른 관리자 제거 불가
                   
-                  // 🔒 관리자 이상만 권한 변경 가능, 단 소유자/관리자 권한은 변경 불가
-                  const canChangeRole = (isOwner || isAdmin) && !isCurrentUser && 
-                    !(member.role === 'owner' || member.role === 'admin');
+                  // 🔒 권한 변경 가능 여부 확인
+                  const canChangeRole = !isCurrentUser && (
+                    (isOwner && member.role !== 'owner') || // 소유자는 다른 소유자를 제외한 모든 멤버 변경 가능
+                    (isAdmin && member.role !== 'owner' && member.role !== 'admin') // 관리자는 일반 멤버만 변경 가능
+                  );
 
                   return (
                     <li key={member.email || member.id} className="flex items-center gap-3 mb-4 p-3 rounded-lg border hover:bg-gray-50">
@@ -498,14 +507,28 @@ export default function MemberModal({ members, onClose, projectId, currentUser, 
 
         {/* 권한 설명 */}
         <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 mb-4 border border-blue-100">
-          <div className="flex items-center mb-3">
-            <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          <button
+            onClick={() => setRoleGuideExpanded(!roleGuideExpanded)}
+            className="flex items-center justify-between w-full mb-3 text-left"
+          >
+            <div className="flex items-center">
+              <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <h4 className="font-semibold text-blue-900 text-base">권한별 기능 안내</h4>
+            </div>
+            <svg 
+              className={`w-5 h-5 text-blue-600 transition-transform ${roleGuideExpanded ? 'rotate-180' : ''}`} 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
-            <h4 className="font-semibold text-blue-900 text-base">권한별 기능 안내</h4>
-          </div>
+          </button>
           
-          <div className="space-y-4">
+          {roleGuideExpanded && (
+            <div className="space-y-4">
             {/* 소유자 권한 */}
             <div className="bg-white rounded-lg p-3 border-l-4 border-yellow-400">
               <div className="flex items-center mb-2">
@@ -572,18 +595,19 @@ export default function MemberModal({ members, onClose, projectId, currentUser, 
                 <li className="text-red-600">⚠️ 생성/수정/삭제 등 모든 변경 작업 불가</li>
               </ul>
             </div>
-          </div>
-
-          <div className="mt-3 p-2 bg-amber-50 rounded border border-amber-200">
-            <div className="flex items-start">
-              <svg className="w-4 h-4 text-amber-600 mr-1 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-              </svg>
-              <div className="text-xs text-amber-800">
-                <strong>참고:</strong> 소유자와 관리자는 담당자가 아닌 업무도 수정/삭제할 수 있어 팀 관리가 용이합니다.
+            
+            <div className="mt-3 p-2 bg-amber-50 rounded border border-amber-200">
+              <div className="flex items-start">
+                <svg className="w-4 h-4 text-amber-600 mr-1 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+                <div className="text-xs text-amber-800">
+                  <strong>참고:</strong> 소유자와 관리자는 담당자가 아닌 업무도 수정/삭제할 수 있어 팀 관리가 용이합니다.
+                </div>
               </div>
             </div>
           </div>
+          )}
         </div>
 
         {/* 닫기 버튼 */}

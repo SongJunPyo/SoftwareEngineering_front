@@ -152,7 +152,9 @@ export const API_ENDPOINTS = {
   NOTIFICATIONS: {
     LIST: `${API_VERSION}/notifications`,
     MARK_READ: (notificationId) => `${API_VERSION}/notifications/${notificationId}/read`,
-    MARK_ALL_READ: `${API_VERSION}/notifications/read-all`,
+    MARK_ALL_READ: `${API_VERSION}/notifications/mark-all-read`,
+    UNREAD_COUNT: `${API_VERSION}/notifications/unread-count`,
+    DELETE: (notificationId) => `${API_VERSION}/notifications/${notificationId}`,
   },
   
   // 작업 관리
@@ -277,6 +279,8 @@ export const notificationAPI = {
   list: (params = {}) => apiClient.get(API_ENDPOINTS.NOTIFICATIONS.LIST, { params }),
   markAsRead: (notificationId) => apiClient.patch(API_ENDPOINTS.NOTIFICATIONS.MARK_READ(notificationId)),
   markAllAsRead: () => apiClient.patch(API_ENDPOINTS.NOTIFICATIONS.MARK_ALL_READ),
+  getUnreadCount: () => apiClient.get(API_ENDPOINTS.NOTIFICATIONS.UNREAD_COUNT),
+  delete: (notificationId) => apiClient.delete(API_ENDPOINTS.NOTIFICATIONS.DELETE(notificationId)),
 };
 
 // 대시보드 API
@@ -288,7 +292,10 @@ export const dashboardAPI = {
 export const commentAPI = {
   listByTask: (taskId) => apiClient.get(API_ENDPOINTS.COMMENTS.LIST_BY_TASK(taskId)),
   create: (commentData) => apiClient.post(API_ENDPOINTS.COMMENTS.CREATE, commentData),
-  update: (commentId, content) => apiClient.put(API_ENDPOINTS.COMMENTS.UPDATE(commentId), { content }),
+  update: (commentId, content) => {
+    console.log('🔧 댓글 수정 API 호출:', { commentId, content, method: 'PATCH' });
+    return apiClient.patch(API_ENDPOINTS.COMMENTS.UPDATE(commentId), { content });
+  },
   delete: (commentId) => apiClient.delete(API_ENDPOINTS.COMMENTS.DELETE(commentId)),
 };
 

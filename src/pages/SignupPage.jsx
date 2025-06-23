@@ -11,7 +11,6 @@ export default function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
-  const [provider, setProvider] = useState("");
   const [signupLoading, setSignupLoading] = useState(false);
   
   // 이메일 인증 관련 상태
@@ -60,24 +59,25 @@ export default function SignupPage() {
 
   // 쿼리스트링 및 초대 컨텍스트 확인
   useEffect(() => {
-    // 쿼리스트링에서 email, name, provider 읽어오기 (신규 소셜 회원만)
+    // 쿼리스트링에서 provider 확인 (소셜 로그인 사용자가 실수로 온 경우)
     const params = new URLSearchParams(location.search);
-    const emailParam = params.get("email");
     const providerParam = params.get("provider");
+    
+    // 소셜 로그인 사용자가 실수로 회원가입 페이지에 온 경우
+    if (providerParam) {
+      alert("소셜 로그인은 별도의 회원가입이 필요하지 않습니다. 로그인 페이지에서 소셜 로그인을 이용해주세요.");
+      navigate('/login');
+      return;
+    }
     
     // 초대 컨텍스트 확인
     const invitationContext = checkInvitationContext();
     
-    // 이메일 설정 우선순위: 소셜로그인 > 초대 > 빈값
-    if (emailParam) {
-      setEmail(emailParam);
-    } else if (invitationContext?.email) {
+    // 초대 이메일이 있으면 설정
+    if (invitationContext?.email) {
       setEmail(invitationContext.email);
     }
-    
-    // 소셜 로그인 프로바이더 설정
-    if (providerParam) setProvider(providerParam);
-  }, [location.search]);
+  }, [location.search, navigate]);
 
   // 페이지 포커스 시 초대 컨텍스트 재확인
   useEffect(() => {
@@ -85,15 +85,15 @@ export default function SignupPage() {
       console.log('회원가입 페이지 포커스 - 초대 컨텍스트 재확인');
       const invitationContext = checkInvitationContext();
       
-      // 소셜 로그인이 아니고 이메일이 비어있다면 초대 이메일로 설정
-      if (invitationContext?.email && !provider && !email) {
+      // 이메일이 비어있다면 초대 이메일로 설정
+      if (invitationContext?.email && !email) {
         setEmail(invitationContext.email);
       }
     };
 
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, [provider, email]);
+  }, [email]);
 
   // 재전송 카운트다운 타이머
   useEffect(() => {
@@ -148,8 +148,7 @@ export default function SignupPage() {
         email: email,
         password: password,
         password_confirm: confirmPassword,
-        name: name,
-        provider: provider || 'local'
+        name: name
       });
       
       if (response.data.message === "회원가입 요청이 완료되었습니다. 이메일을 확인하여 계정을 활성화해주세요.") {
@@ -272,7 +271,7 @@ export default function SignupPage() {
                 className="w-full border border-gray-300 rounded px-4 py-2 mb-3 text-base"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                readOnly={!!provider || !!invitationContext}
+                readOnly={!!invitationContext}
               />
               <input
                 type="password"

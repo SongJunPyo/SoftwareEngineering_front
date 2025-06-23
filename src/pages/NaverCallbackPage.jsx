@@ -73,12 +73,6 @@ function NaverCallbackPage() {
           throw new Error('서버 응답이 올바르지 않습니다.');
         }
 
-        // 추가 정보가 필요한 경우 (회원가입)
-        if (response.data.extra_info_required) {
-          console.log('추가 정보 필요:', response.data);
-          navigate(`/signup?email=${encodeURIComponent(response.data.email)}&name=${encodeURIComponent(response.data.name || '')}&provider=naver`);
-          return;
-        }
 
         // 새로운 응답 형식으로 로그인 성공 처리
         if (response.data.access_token && response.data.email) {

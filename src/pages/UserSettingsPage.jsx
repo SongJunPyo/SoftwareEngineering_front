@@ -157,10 +157,19 @@ function UserSettingsPage() {
     }
 
     try {
-      await userAPI.deleteAccount({
-        confirmation_text: deleteForm.confirmationText,
-        password: deleteForm.password || ''
-      });
+      const requestData = {
+        confirmation_text: deleteForm.confirmationText
+      };
+      
+      // 소셜 계정이 아닌 경우에만 비밀번호 포함
+      if (provider === 'local') {
+        requestData.password = deleteForm.password;
+      }
+      
+      console.log('계정 탈퇴 요청 데이터:', requestData);
+      console.log('현재 provider:', provider);
+      
+      await userAPI.deleteAccount(requestData);
       alert('계정이 탈퇴되었습니다.');
       localStorage.clear();
       window.location.href = '/login';
@@ -271,9 +280,10 @@ function UserSettingsPage() {
       <section className="bg-white p-6 rounded shadow border-l-4 border-red-500">
         <h2 className="text-2xl font-semibold mb-4 text-red-600">⚠️ 위험 구역</h2>
         <div className="bg-red-50 p-4 rounded mb-4">
-          <h3 className="font-semibold text-red-800 mb-2">계정 탈퇴 시 주의사항</h3>
+          <h3 className="font-semibold text-red-800 mb-2">계정 탈퇴 시 처리 사항</h3>
           <ul className="text-sm text-red-700 space-y-1">
-            <li>• 본인이 소유한 모든 프로젝트가 완전히 삭제됩니다</li>
+            <li>• 소유한 프로젝트는 다른 멤버(관리자 우선)에게 자동으로 소유권이 이전됩니다</li>
+            <li>• 다른 멤버가 없는 프로젝트는 완전히 삭제됩니다</li>
             <li>• 본인이 담당자로 지정된 업무들의 담당자가 "알 수 없음 (탈퇴)"로 변경됩니다</li>
             <li>• 작성한 댓글은 유지되지만 작성자가 "알 수 없음 (탈퇴)"로 표시됩니다</li>
             <li>• 이 작업은 되돌릴 수 없습니다</li>

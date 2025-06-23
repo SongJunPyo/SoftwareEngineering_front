@@ -1,10 +1,11 @@
 // src/App.jsx
 
-import React, { useState, useContext, useEffect } from 'react';
+import React, { useState, useContext, useEffect, useCallback } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 
 import TopBar from './components/TopBar';
 import Sidebar from './components/Sidebar';
+import NotificationToast from './components/NotificationToast';
 
 import TaskDetailPage from './pages/TaskDetailPage';
 import LoginPage from './pages/LoginPage';
@@ -18,12 +19,15 @@ import UserSettingsPage from './pages/UserSettingsPage';
 import NotificationsPage from './pages/NotificationsPage';
 import InviteAcceptPage from './pages/InviteAcceptPage';
 import { OrgProjectProvider, OrgProjectContext } from './context/OrgProjectContext';
+import { WebSocketProvider } from './websocket/WebSocketContext';
 import { setApiClientToken } from './api/api';
 
 function App() {
   return (
     <OrgProjectProvider>
-      <AppRoutes />
+      <WebSocketProvider>
+        <AppRoutes />
+      </WebSocketProvider>
     </OrgProjectProvider>
   );
 }
@@ -43,9 +47,16 @@ function AppRoutes() {
   });
   
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [latestNotification, setLatestNotification] = useState(null);
   const location = useLocation();
   const navigate = useNavigate();
   const { fetchOrganizations } = useContext(OrgProjectContext);
+
+  // 새 알림 처리
+  const handleNewNotification = useCallback((notification) => {
+    console.log('🎯 App.jsx - 새 알림 수신:', notification);
+    setLatestNotification(notification);
+  }, []);
 
   // 로그아웃 함수
   const handleLogout = () => {
@@ -120,7 +131,9 @@ function AppRoutes() {
   };
 
   return (
-    <Routes>
+    <>
+      <NotificationToast user={user} newNotification={latestNotification} />
+      <Routes>
       {/* 1) 로그인/회원가입 */}
       <Route 
         path="/login" 
@@ -153,7 +166,8 @@ function AppRoutes() {
               <TopBar 
                 user={user} 
                 onLogout={handleLogout} 
-                onToggleSidebar={() => setSidebarOpen(prev => !prev)} 
+                onToggleSidebar={() => setSidebarOpen(prev => !prev)}
+                onNewNotification={handleNewNotification}
               />
               <main>
                 <MainPage />
@@ -178,6 +192,7 @@ function AppRoutes() {
                 user={user}
                 onLogout={handleLogout}
                 onToggleSidebar={() => setSidebarOpen(prev => !prev)}
+                onNewNotification={handleNewNotification}
               />
               <div className="flex flex-1 overflow-hidden">
                 {sidebarOpen && <Sidebar />}
@@ -202,6 +217,7 @@ function AppRoutes() {
                   user={user}
                   onLogout={handleLogout}
                   onToggleSidebar={() => setSidebarOpen(prev => !prev)}
+                  onNewNotification={handleNewNotification}
               />
               <div className="flex flex-1 overflow-hidden">
                 {sidebarOpen && <Sidebar />}
@@ -236,7 +252,8 @@ function AppRoutes() {
               <TopBar 
                 user={user} 
                 onLogout={handleLogout} 
-                onToggleSidebar={() => setSidebarOpen(prev => !prev)} 
+                onToggleSidebar={() => setSidebarOpen(prev => !prev)}
+                onNewNotification={handleNewNotification}
               />
               <main className="p-6 bg-gray-100">
                 <UserSettingsPage />
@@ -251,7 +268,7 @@ function AppRoutes() {
         path="/notifications"
         element={isLoggedIn ? (
           <div className="min-h-screen bg-white">
-            <TopBar user={user} onLogout={handleLogout} onToggleSidebar={() => setSidebarOpen(prev => !prev)} />
+            <TopBar user={user} onLogout={handleLogout} onToggleSidebar={() => setSidebarOpen(prev => !prev)} onNewNotification={handleNewNotification} />
             <main className="bg-gray-100">
               <NotificationsPage user={user} />
             </main>
@@ -262,7 +279,8 @@ function AppRoutes() {
         path="/invite/:invitationId"
         element={<InviteAcceptPage />}
       />
-    </Routes>
+      </Routes>
+    </>
   );
 }
 

@@ -148,7 +148,9 @@ export const useNotificationRealtime = (userId, onNotification) => {
     joinRoom(userRoom);
 
     const notificationHandlers = [
+      // 일반 알림
       addMessageHandler(MESSAGE_TYPES.NOTIFICATION_NEW, (message) => {
+        console.log('📨 NOTIFICATION_NEW 수신:', message);
         if (onNotificationRef.current) {
           onNotificationRef.current({
             type: 'new',
@@ -157,7 +159,9 @@ export const useNotificationRealtime = (userId, onNotification) => {
         }
       }),
       
+      // Task 할당 알림
       addMessageHandler(MESSAGE_TYPES.TASK_ASSIGNED, (message) => {
+        console.log('📋 TASK_ASSIGNED 수신:', message);
         if (onNotificationRef.current) {
           onNotificationRef.current({
             type: 'task_assigned',
@@ -166,10 +170,35 @@ export const useNotificationRealtime = (userId, onNotification) => {
         }
       }),
       
+      // 프로젝트 멤버 추가 알림
       addMessageHandler(MESSAGE_TYPES.PROJECT_MEMBER_ADDED, (message) => {
+        console.log('👥 PROJECT_MEMBER_ADDED 수신:', message);
         if (onNotificationRef.current) {
           onNotificationRef.current({
             type: 'project_member_added',
+            data: message.data
+          });
+        }
+      }),
+      
+      // 댓글 멘션 알림
+      addMessageHandler(MESSAGE_TYPES.COMMENT_MENTION, (message) => {
+        console.log('💬 COMMENT_MENTION 수신:', message);
+        if (onNotificationRef.current) {
+          onNotificationRef.current({
+            type: 'comment_mention',
+            data: message.data
+          });
+        }
+      }),
+      
+      // 댓글 생성 알림 (담당자에게)
+      addMessageHandler(MESSAGE_TYPES.COMMENT_CREATED, (message) => {
+        console.log('💬 COMMENT_CREATED 수신:', message);
+        // 댓글 생성은 일반적으로 Task 담당자에게 알림이 가므로 알림으로 처리
+        if (onNotificationRef.current) {
+          onNotificationRef.current({
+            type: 'comment_created',
             data: message.data
           });
         }

@@ -7,6 +7,14 @@ import TaskDetailPage from './TaskDetailPage';
 import Modal from '../components/Task_Modal';
 import TagManagementModal from '../components/TagManagementModal';
 import { FiSearch } from 'react-icons/fi';
+import { useTaskRealtime } from '../websocket/useWebSocket';
+import { 
+  TASK_STATUS, 
+  STATUS_FILTER_OPTIONS, 
+  STATUS_FORM_OPTIONS, 
+  STATUS_TABLE_STYLES, 
+  getStatusLabel 
+} from '../constants/taskStatus';
 
 function AllTasksPage() {
   // 1) Context 훅 (항상 최상단)
@@ -159,6 +167,50 @@ function AllTasksPage() {
       }
     }
   }, [currentUser, members]);
+
+  // 실시간 Task 업데이트 처리
+  useTaskRealtime(projectId, (update) => {
+    switch (update.type) {
+      case 'created':
+        setTasks(prevTasks => {
+          // 중복 방지 체크
+          const exists = prevTasks.find(task => task.task_id === update.task.task_id);
+          if (exists) return prevTasks;
+          return [...prevTasks, update.task];
+        });
+        break;
+        
+      case 'updated':
+        setTasks(prevTasks => 
+          prevTasks.map(task =>
+            task.task_id === update.task.task_id
+              ? { ...task, ...update.task }
+              : task
+          )
+        );
+        break;
+        
+      case 'status_changed':
+        setTasks(prevTasks => 
+          prevTasks.map(task =>
+            task.task_id === update.task.task_id
+              ? { 
+                  ...task, 
+                  status: update.task.new_status || update.task.status,
+                  updated_at: new Date().toISOString()
+                }
+              : task
+          )
+        );
+        break;
+        
+      case 'deleted':
+        setTasks(prevTasks => 
+          prevTasks.filter(task => task.task_id !== update.task.task_id)
+        );
+        break;
+    }
+  });
 
   // 6) 조기 리턴: 아직 프로젝트가 선택되지 않았거나 로딩 중이면
   if (!currentOrg || !currentProject) {
@@ -611,11 +663,11 @@ function AllTasksPage() {
                 onChange={(e) => setFilterStatus(e.target.value)}
                 className="px-2 py-1.5 border border-gray-200 rounded-md focus:ring-1 focus:ring-blue-500 text-sm"
               >
-                <option value="">상태</option>
-                <option value="todo">📝 할 일</option>
-                <option value="in_progress">🔄 진행중</option>
-                <option value="pending">⏸️ 대기</option>
-                <option value="complete">✅ 완료</option>
+                {STATUS_FILTER_OPTIONS.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
 
               {/* 우선순위 필터 */}
@@ -667,10 +719,7 @@ function AllTasksPage() {
                 )}
                 {filterStatus && (
                   <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded text-xs">
-                    {filterStatus === 'todo' ? '📝 할 일' : 
-                     filterStatus === 'in_progress' ? '🔄 진행중' : 
-                     filterStatus === 'pending' ? '⏸️ 대기' : 
-                     filterStatus === 'complete' ? '✅ 완료' : filterStatus}
+                    {getStatusLabel(filterStatus)}
                   </span>
                 )}
                 {filterPriority && (
@@ -802,10 +851,11 @@ function AllTasksPage() {
                   onChange={handleChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
                 >
-                  <option value="todo">📝 할 일</option>
-                  <option value="in_progress">🔄 진행중</option>
-                  <option value="pending">⏸️ 대기</option>
-                  <option value="complete">✅ 완료</option>
+                  {STATUS_FORM_OPTIONS.map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -996,16 +1046,8 @@ function AllTasksPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
-                        task.status === 'complete' ? 'bg-green-100 text-green-800' :
-                        task.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
-                        task.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {task.status === 'complete' ? '✅ 완료' :
-                         task.status === 'in_progress' ? '🔄 진행중' :
-                         task.status === 'pending' ? '⏸️ 대기' :
-                         '📝 할 일'}
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_TABLE_STYLES[task.status] || STATUS_TABLE_STYLES[TASK_STATUS.TODO]}`}>
+                        {getStatusLabel(task.status)}
                       </span>
                     </td>
                     <td className="px-6 py-4">

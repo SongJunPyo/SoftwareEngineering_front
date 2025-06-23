@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext, useEffect, useState, useRef } from "react";
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 import { OrgProjectContext } from "../context/OrgProjectContext";
 import { useNavigate } from "react-router-dom";
@@ -7,41 +7,17 @@ import { FiPlus, FiSearch, FiFilter, FiUser, FiCalendar, FiClock, FiTag, FiMoreH
 import TaskDetailPage from './TaskDetailPage';
 import Modal from '../components/Task_Modal';
 import TagManagementModal from '../components/TagManagementModal';
+import { useTaskRealtime } from '../websocket/useWebSocket';
+import { useWebSocket } from '../websocket/WebSocketContext';
+import { 
+  TASK_STATUS, 
+  STATUS_CONFIG_KANBAN, 
+  STATUS_FILTER_OPTIONS, 
+  STATUS_FORM_OPTIONS 
+} from '../constants/taskStatus';
 
-const statusConfig = {
-  todo: {
-    label: "📝 할 일",
-    color: "bg-gray-100",
-    textColor: "text-gray-700",
-    borderColor: "border-gray-300",
-    bgColor: "bg-gray-50",
-    headerColor: "bg-gray-200"
-  },
-  in_progress: {
-    label: "🔄 진행중",
-    color: "bg-blue-100", 
-    textColor: "text-blue-700",
-    borderColor: "border-blue-300",
-    bgColor: "bg-blue-50",
-    headerColor: "bg-blue-100"
-  },
-  pending: {
-    label: "⏸️ 대기",
-    color: "bg-yellow-100", 
-    textColor: "text-yellow-700",
-    borderColor: "border-yellow-300",
-    bgColor: "bg-yellow-50",
-    headerColor: "bg-yellow-100"
-  },
-  complete: {
-    label: "✅ 완료",
-    color: "bg-green-100",
-    textColor: "text-green-700", 
-    borderColor: "border-green-300",
-    bgColor: "bg-green-50",
-    headerColor: "bg-green-100"
-  }
-};
+// 상태 설정 (공통 상수 사용)
+const statusConfig = STATUS_CONFIG_KANBAN;
 
 const priorityConfig = {
   low: { label: "🟢 낮음", color: "bg-gray-100 text-gray-700" },
@@ -74,8 +50,10 @@ function TaskCard({ task, index, onEdit, onDelete, canModify, onClick }) {
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
-          className={`bg-white rounded-lg shadow-sm border-2 p-4 mb-3 cursor-pointer hover:shadow-md transition-shadow ${
-            snapshot.isDragging ? 'rotate-2 shadow-lg' : ''
+          className={`bg-white rounded-lg shadow-sm border-2 p-4 mb-3 cursor-pointer hover:shadow-md transition-all duration-200 ${
+            snapshot.isDragging 
+              ? 'rotate-2 shadow-xl scale-105 border-blue-400 bg-blue-50 opacity-90' 
+              : 'hover:border-gray-300'
           } ${isOverdue ? 'border-red-200' : 'border-gray-200'}`}
           onClick={() => onClick(task)}
         >
@@ -186,7 +164,7 @@ function TaskCard({ task, index, onEdit, onDelete, canModify, onClick }) {
   );
 }
 
-function Column({ status, config, tasks, onAddTask, onTaskClick, canAddTask, onTaskDelete, canModifyTask }) {
+function Column({ status, config, tasks, onAddTask, onTaskClick, canAddTask, onTaskDelete, canModifyTask, isConnected }) {
   return (
     <div className={`flex-1 ${config.bgColor} rounded-lg p-4 border ${config.borderColor}`}>
       <div className={`${config.headerColor} rounded-lg p-3 mb-4`}>
@@ -212,13 +190,17 @@ function Column({ status, config, tasks, onAddTask, onTaskClick, canAddTask, onT
         </div>
       </div>
       
-      <Droppable droppableId={status}>
+      <Droppable droppableId={status} isDropDisabled={!isConnected}>
         {(provided, snapshot) => (
           <div
             ref={provided.innerRef}
             {...provided.droppableProps}
-            className={`min-h-[200px] transition-colors rounded-lg ${
-              snapshot.isDraggingOver ? 'bg-white/30' : ''
+            className={`min-h-[200px] transition-all duration-300 rounded-lg ${
+              !isConnected 
+                ? 'border-2 border-gray-300 border-dashed bg-gray-100 opacity-50' 
+                : snapshot.isDraggingOver 
+                  ? 'bg-blue-100/80 border-2 border-blue-400 border-dashed shadow-inner scale-102' 
+                  : 'border-2 border-transparent'
             }`}
           >
             {tasks.map((task, index) => (
@@ -235,8 +217,12 @@ function Column({ status, config, tasks, onAddTask, onTaskClick, canAddTask, onT
             {provided.placeholder}
             
             {tasks.length === 0 && (
-              <div className="text-center text-gray-500 text-sm py-8 bg-white/30 rounded-lg">
-                작업이 없습니다
+              <div className={`text-center text-sm py-8 rounded-lg ${
+                isConnected 
+                  ? 'text-gray-500 bg-white/30'
+                  : 'text-gray-400 bg-gray-100/50'
+              }`}>
+                {isConnected ? '작업이 없습니다' : '연결 대기 중...'}
               </div>
             )}
           </div>
@@ -251,6 +237,7 @@ export default function BoardPage() {
   const { organizations, selectedOrgIndex, selectedProjectIndex, taskUpdateTrigger } =
     useContext(OrgProjectContext);
   const navigate = useNavigate();
+  const { isConnected } = useWebSocket();
 
   // State 훅들
   const [tasks, setTasks] = useState([]);
@@ -289,6 +276,10 @@ export default function BoardPage() {
   const currentOrg = organizations?.[selectedOrgIndex];
   const currentProject = currentOrg?.projects?.[selectedProjectIndex];
   const projectId = currentProject?.projectId ?? null;
+  
+  // 실시간 업데이트 실패 시 자동 복구
+  const [updateFailCount, setUpdateFailCount] = useState(0);
+  const maxRetries = 3;
 
   // 현재 사용자 정보 가져오기
   useEffect(() => {
@@ -340,6 +331,118 @@ export default function BoardPage() {
       fetchCurrentUserRole();
     }
   }, [currentUser, projectId]);
+
+  // WebSocket 연결 상태 변화 감지 및 자동 복구
+  useEffect(() => {
+    if (!isConnected && projectId && updateFailCount < maxRetries) {
+      console.log(`🔄 WebSocket 연결 끊어짐 감지, ${updateFailCount + 1}회 시도`);
+      const timer = setTimeout(() => {
+        console.log('📊 연결 복구를 위해 Task 목록 새로고침');
+        fetchTasks();
+        setUpdateFailCount(prev => prev + 1);
+      }, 2000 * (updateFailCount + 1)); // 점진적 지연
+      
+      return () => clearTimeout(timer);
+    }
+    
+    if (isConnected && updateFailCount > 0) {
+      console.log('✅ WebSocket 연결 복구됨');
+      setUpdateFailCount(0);
+    }
+  }, [isConnected, projectId, updateFailCount]);
+
+  // 실시간 Task 업데이트 처리 (중복 방지 및 충돌 해결 개선)
+  const lastUpdateRef = useRef({});
+  
+  useTaskRealtime(projectId, (update) => {
+    const taskId = update.task.task_id;
+    const updateKey = `${taskId}_${update.type}`;
+    const updateTime = new Date(update.task.updated_at || Date.now()).getTime();
+    const lastUpdateTime = lastUpdateRef.current[updateKey] || 0;
+    
+    // 중복 업데이트 방지 (100ms 내 동일한 업데이트 무시)
+    if (updateTime - lastUpdateTime < 100) {
+      console.log(`🔄 중복 업데이트 무시: ${update.type} for task ${taskId}`);
+      return;
+    }
+    
+    lastUpdateRef.current[updateKey] = updateTime;
+    
+    switch (update.type) {
+      case 'created':
+        setTasks(prevTasks => {
+          // 중복 방지 체크
+          const exists = prevTasks.find(task => task.task_id === taskId);
+          if (exists) {
+            console.log(`🔄 Task ${taskId} 이미 존재, 생성 무시`);
+            return prevTasks;
+          }
+          console.log(`✅ Task ${taskId} 실시간 생성:`, update.task.title);
+          return [...prevTasks, update.task];
+        });
+        break;
+        
+      case 'updated':
+        setTasks(prevTasks => 
+          prevTasks.map(task => {
+            if (task.task_id === taskId) {
+              // 더 최신 데이터만 적용 (updated_at 비교)
+              const currentTime = new Date(task.updated_at || 0).getTime();
+              const newTime = new Date(update.task.updated_at || 0).getTime();
+              
+              if (newTime > currentTime) {
+                console.log(`🔄 Task ${taskId} 실시간 업데이트:`, update.task.title);
+                return { ...task, ...update.task };
+              } else {
+                console.log(`⚠️ Task ${taskId} 오래된 업데이트 무시`);
+                return task;
+              }
+            }
+            return task;
+          })
+        );
+        break;
+        
+      case 'status_changed':
+        setTasks(prevTasks => 
+          prevTasks.map(task => {
+            if (task.task_id === taskId) {
+              const newStatus = update.task.new_status || update.task.status;
+              
+              // 이미 동일한 상태면 무시
+              if (task.status === newStatus) {
+                console.log(`🔄 Task ${taskId} 동일한 상태 변경 무시: ${newStatus}`);
+                return task;
+              }
+              
+              console.log(`🔄 Task ${taskId} 실시간 상태 변경: ${task.status} → ${newStatus}`);
+              return { 
+                ...task, 
+                status: newStatus,
+                updated_at: update.task.updated_at || new Date().toISOString()
+              };
+            }
+            return task;
+          })
+        );
+        break;
+        
+      case 'deleted':
+        setTasks(prevTasks => {
+          const exists = prevTasks.find(task => task.task_id === taskId);
+          if (!exists) {
+            console.log(`🔄 Task ${taskId} 이미 삭제됨, 무시`);
+            return prevTasks;
+          }
+          console.log(`🗑️ Task ${taskId} 실시간 삭제:`, exists.title);
+          return prevTasks.filter(task => task.task_id !== taskId);
+        });
+        break;
+        
+      default:
+        console.log(`❓ 알 수 없는 업데이트 타입:`, update.type);
+    }
+  });
 
   const fetchTasks = async () => {
     try {
@@ -408,16 +511,17 @@ export default function BoardPage() {
     }
   };
 
-  // 드래그 앤 드롭 핸들러
+  // 드래그 앤 드롭 핸들러 (낙관적 업데이트 + 롤백)
   const handleDragEnd = async (result) => {
     if (!result.destination) return;
     
     const { source, destination, draggableId } = result;
     const taskId = parseInt(draggableId);
     const newStatus = destination.droppableId;
+    const oldStatus = source.droppableId;
     
     // 같은 컬럼 내에서 이동하는 경우
-    if (source.droppableId === destination.droppableId) {
+    if (oldStatus === newStatus) {
       return;
     }
     
@@ -435,30 +539,43 @@ export default function BoardPage() {
     }
 
     // 2. 비즈니스 로직 검증
-    const oldStatusLabel = statusConfig[source.droppableId]?.label;
+    const oldStatusLabel = statusConfig[oldStatus]?.label;
     const newStatusLabel = statusConfig[newStatus]?.label;
 
     // 완료된 업무를 다시 되돌리는 경우 확인
-    if (source.droppableId === 'complete' && newStatus !== 'complete') {
+    if (oldStatus === 'complete' && newStatus !== 'complete') {
       const confirm = window.confirm(`⚠️ 상태 변경 확인\n\n업무: ${taskToMove.title}\n${oldStatusLabel} → ${newStatusLabel}\n\n완료된 업무를 다시 진행 상태로 되돌리시겠습니까?`);
       if (!confirm) return;
     }
 
-    // 3. 상태 변경 시도
+    // 3. 낙관적 업데이트 (즉시 UI 반영)
+    const originalTask = { ...taskToMove };
+    setTasks(prevTasks => 
+      prevTasks.map(task => 
+        task.task_id === taskId 
+          ? { ...task, status: newStatus, updated_at: new Date().toISOString() }
+          : task
+      )
+    );
+
+    // 4. 서버에 상태 변경 요청
     try {
-      const token = localStorage.getItem("access_token");
       await taskAPI.updateStatus(taskId, newStatus);
+      console.log(`✅ 업무 상태 변경 성공: ${taskToMove.title} (${oldStatusLabel} → ${newStatusLabel})`);
       
-      // UI 업데이트
+    } catch (error) {
+      console.error('❌ 업무 상태 변경 실패:', error);
+      console.error('❌ 에러 응답 데이터:', error.response?.data);
+      console.error('❌ 요청 데이터:', { taskId, newStatus, oldStatus });
+      
+      // 5. 실패 시 롤백 (원래 상태로 복원)
       setTasks(prevTasks => 
         prevTasks.map(task => 
-          task.task_id === taskId ? { ...task, status: newStatus } : task
+          task.task_id === taskId ? originalTask : task
         )
       );
       
-    } catch (error) {
-      console.error('작업 상태 변경 실패:', error);
-      
+      // 에러 메시지 표시
       if (error.response?.status === 401) {
         alert('🔒 로그인이 필요합니다.');
         localStorage.removeItem('access_token');
@@ -467,8 +584,11 @@ export default function BoardPage() {
         alert('⛔ 권한이 없습니다.\n이 업무의 상태를 변경할 권한이 없습니다.');
       } else if (error.response?.status === 404) {
         alert('❌ 업무를 찾을 수 없습니다.');
+      } else if (error.response?.status === 409) {
+        alert('⚠️ 충돌이 발생했습니다.\n다른 사용자가 동시에 이 업무를 수정했습니다.\n페이지를 새로고침합니다.');
+        window.location.reload();
       } else {
-        alert('❌ 업무 상태 변경에 실패했습니다.\n\n네트워크 연결을 확인하고 다시 시도해주세요.');
+        alert(`❌ 업무 상태 변경에 실패했습니다.\n\n${taskToMove.title}\n${newStatusLabel} → ${oldStatusLabel} (복원됨)\n\n네트워크 연결을 확인하고 다시 시도해주세요.`);
       }
     }
   };
@@ -839,7 +959,29 @@ export default function BoardPage() {
       {/* 헤더 */}
       <div className="bg-white border-b border-gray-200 p-4">
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold text-gray-900">칸반 보드</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-gray-900">칸반 보드</h1>
+            {/* WebSocket 연결 상태 표시 */}
+            <div className="flex items-center gap-1">
+              <div className={`w-2 h-2 rounded-full ${
+                isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'
+              }`}></div>
+              <span className={`text-xs font-medium ${isConnected ? 'text-green-600' : 'text-red-600'}`}>
+                {isConnected ? '실시간 연결됨' : updateFailCount > 0 ? `재연결 시도 중 (${updateFailCount}/${maxRetries})` : '연결 끊어짐'}
+              </span>
+              {!isConnected && updateFailCount >= maxRetries && (
+                <button
+                  onClick={() => {
+                    setUpdateFailCount(0);
+                    fetchTasks();
+                  }}
+                  className="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1 rounded ml-1 transition-colors"
+                >
+                  새로고침
+                </button>
+              )}
+            </div>
+          </div>
           <div className="flex space-x-3">
             {/* 뷰어가 아닌 경우에만 태그 관리 버튼 표시 */}
             {currentUserRole !== 'viewer' && (
@@ -1033,6 +1175,7 @@ export default function BoardPage() {
                 onTaskClick={handleTaskClick}
                 onTaskDelete={handleDeleteTask}
                 canModifyTask={canModifyTask}
+                isConnected={isConnected}
               />
             ))}
           </div>

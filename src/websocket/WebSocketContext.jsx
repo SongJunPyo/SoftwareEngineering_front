@@ -98,7 +98,8 @@ export const WebSocketProvider = ({ children }) => {
       wsRef.current = new WebSocket(wsUrl);
 
       wsRef.current.onopen = () => {
-        console.log('WebSocket connected');
+        console.log('✅ WebSocket 연결 성공');
+        console.log('🔗 연결 상태:', CONNECTION_STATUS.CONNECTED);
         setConnectionStatus(CONNECTION_STATUS.CONNECTED);
         setConnectionError(null);
         reconnectAttemptsRef.current = 0;
@@ -111,9 +112,10 @@ export const WebSocketProvider = ({ children }) => {
       wsRef.current.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
+          console.log('📨 WebSocket 메시지 수신:', message.type, message);
           
           if (!validateMessage(message)) {
-            console.warn('Invalid message received:', message);
+            console.warn('⚠️ 잘못된 메시지 형식:', message);
             return;
           }
 

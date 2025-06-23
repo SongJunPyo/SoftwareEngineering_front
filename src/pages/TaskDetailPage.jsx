@@ -2,6 +2,7 @@ import React, { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { OrgProjectContext } from '../context/OrgProjectContext';
 import { taskAPI, projectAPI, authAPI, commentAPI, tagAPI } from '../api/api';
+import { useTaskRealtime, useCommentRealtime } from '../websocket/useWebSocket';
 
 export default function TaskDetailPage({
   inner,                // 모달 여부
@@ -23,6 +24,11 @@ export default function TaskDetailPage({
   const [newComment, setNewComment] = useState('');
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editingContent, setEditingContent] = useState('');
+  
+  // 멘션 기능 상태
+  const [showMentionSuggestions, setShowMentionSuggestions] = useState(false);
+  const [mentionSuggestions, setMentionSuggestions] = useState([]);
+  const [cursorPosition, setCursorPosition] = useState(0);
   
   // 편집 모드 상태
   const [isEditing, setIsEditing] = useState(false);
@@ -95,11 +101,13 @@ export default function TaskDetailPage({
     
     try {
       const res = await projectAPI.getMembers(projectId);
-      setProjectMembers(res.data.members || []);
+      const members = res.data.members || [];
+      setProjectMembers(members);
+      console.log('👥 프로젝트 멤버 로드됨:', members);
       
       // 현재 사용자의 역할 찾기
       if (currentUser) {
-        const currentMember = res.data.members.find(member => member.user_id === currentUser.user_id);
+        const currentMember = members.find(member => member.user_id === currentUser.user_id);
         if (currentMember) {
           setCurrentUserRole(currentMember.role);
         }
@@ -141,16 +149,17 @@ export default function TaskDetailPage({
     if (!token) return;
     
     try {
-      // JWT 토큰에서 user_id 추출
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      setCurrentUser({ user_id: parseInt(payload.sub) });
+      // API를 통해 완전한 사용자 정보 가져오기
+      const res = await authAPI.me();
+      setCurrentUser(res.data);
     } catch (err) {
-      console.error('토큰에서 사용자 정보 추출 실패:', err);
+      console.error('현재 사용자 정보 조회 실패:', err);
       try {
-        const res = await authAPI.me();
-        setCurrentUser(res.data);
-      } catch (apiErr) {
-        console.error('현재 사용자 정보 조회 실패:', apiErr);
+        // 폴백: JWT 토큰에서 user_id만 추출
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        setCurrentUser({ user_id: parseInt(payload.sub) });
+      } catch (tokenErr) {
+        console.error('토큰에서 사용자 정보 추출 실패:', tokenErr);
       }
     }
   };
@@ -168,6 +177,66 @@ export default function TaskDetailPage({
   useEffect(() => {
     if (taskId) fetchComments();
   }, [taskId]);
+
+  // 실시간 Task 업데이트 처리
+  useTaskRealtime(task?.project_id, (update) => {
+    if (update.task.task_id === parseInt(taskId)) {
+      switch (update.type) {
+        case 'updated':
+          setTask(prevTask => ({
+            ...prevTask,
+            ...update.task,
+            // 날짜 필드 처리
+            start_date: update.task.start_date ? update.task.start_date.slice(0, 10) : prevTask.start_date,
+            due_date: update.task.due_date ? update.task.due_date.slice(0, 10) : prevTask.due_date
+          }));
+          setDescription(update.task.description || '');
+          break;
+        case 'status_changed':
+          setTask(prevTask => ({
+            ...prevTask,
+            status: update.task.new_status || update.task.status
+          }));
+          break;
+        case 'deleted':
+          // Task가 삭제된 경우 페이지 이동
+          if (inner && onClose) {
+            onClose();
+          } else {
+            navigate('/main');
+          }
+          break;
+      }
+    }
+  });
+
+  // 실시간 Comment 업데이트 처리
+  useCommentRealtime(task?.project_id, (update) => {
+    if (update.comment.task_id === parseInt(taskId)) {
+      switch (update.type) {
+        case 'created':
+          setComments(prevComments => [...prevComments, {
+            ...update.comment,
+            user_name: update.comment.author_name
+          }]);
+          break;
+        case 'updated':
+          setComments(prevComments => 
+            prevComments.map(comment =>
+              comment.comment_id === update.comment.comment_id
+                ? { ...comment, content: update.comment.content, is_updated: 1 }
+                : comment
+            )
+          );
+          break;
+        case 'deleted':
+          setComments(prevComments => 
+            prevComments.filter(comment => comment.comment_id !== update.comment.comment_id)
+          );
+          break;
+      }
+    }
+  });
 
   // 현재 사용자 역할 업데이트
   useEffect(() => {
@@ -190,17 +259,140 @@ export default function TaskDetailPage({
     }
     try {
       await commentAPI.create({
-        task_id: taskId,
+        task_id: parseInt(taskId),
         content: newComment,
       });
       setNewComment('');
-      fetchComments();
+      // fetchComments() 제거 - 실시간 업데이트로 처리됨
     } catch (err) {
+      console.error('댓글 등록 실패:', err);
       alert('댓글 등록에 실패했습니다.');
     }
   };
 
   const handleDescriptionChange = (e) => setDescription(e.target.value);
+
+  // 멘션 처리 함수
+  const handleCommentChange = (e) => {
+    const value = e.target.value;
+    console.log('🔥 댓글 변경 감지됨:', value);
+    
+    setNewComment(value);
+    
+    // @ 기호로 멘션 감지 (단순화)
+    if (value.includes('@')) {
+      console.log('@ 기호 감지됨!');
+      console.log('프로젝트 멤버 수:', projectMembers.length);
+      console.log('현재 사용자:', currentUser);
+      
+      // 현재 커서 위치 기반 멘션 감지
+      const cursorPos = e.target.selectionStart;
+      const beforeCursor = value.substring(0, cursorPos);
+      const lastAtIndex = beforeCursor.lastIndexOf('@');
+      
+      if (lastAtIndex !== -1) {
+        const query = beforeCursor.substring(lastAtIndex + 1).toLowerCase();
+        console.log('멘션 쿼리:', query);
+        
+        const filtered = projectMembers.filter(member => 
+          member.name && member.name.toLowerCase().includes(query)
+        );
+        console.log('필터링된 멤버:', filtered);
+        
+        setMentionSuggestions(filtered);
+        setShowMentionSuggestions(filtered.length > 0);
+      }
+    } else {
+      setShowMentionSuggestions(false);
+      setMentionSuggestions([]);
+    }
+  };
+
+  // 멘션 선택 처리
+  const handleMentionSelect = (member) => {
+    console.log('🎯 멘션 선택됨:', member);
+    
+    // 마지막 @ 위치 찾기
+    const lastAtIndex = newComment.lastIndexOf('@');
+    if (lastAtIndex !== -1) {
+      const before = newComment.substring(0, lastAtIndex);
+      const after = newComment.substring(lastAtIndex).replace(/@\w*/, `@${member.name} `);
+      const newValue = before + after;
+      setNewComment(newValue);
+    }
+    
+    setShowMentionSuggestions(false);
+    setMentionSuggestions([]);
+  };
+
+  // 댓글 내용에서 멘션 하이라이트
+  const renderCommentContent = (content) => {
+    const mentionRegex = /@(\w+)/g;
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = mentionRegex.exec(content)) !== null) {
+      // 멘션 이전 텍스트
+      if (match.index > lastIndex) {
+        parts.push(content.substring(lastIndex, match.index));
+      }
+      
+      // 멘션 텍스트 (하이라이트)
+      parts.push(
+        <span key={match.index} className="bg-blue-100 text-blue-800 px-1 rounded font-medium">
+          {match[0]}
+        </span>
+      );
+      
+      lastIndex = match.index + match[0].length;
+    }
+    
+    // 나머지 텍스트
+    if (lastIndex < content.length) {
+      parts.push(content.substring(lastIndex));
+    }
+    
+    return parts;
+  };
+
+  // 댓글 수정 시작
+  const handleEditComment = (comment) => {
+    setEditingCommentId(comment.comment_id);
+    setEditingContent(comment.content);
+  };
+
+  // 댓글 수정 저장
+  const handleSaveEdit = async (commentId) => {
+    if (!editingContent.trim()) return;
+    try {
+      await commentAPI.update(commentId, editingContent);
+      setEditingCommentId(null);
+      setEditingContent('');
+      // fetchComments() 제거 - 실시간 업데이트로 처리됨
+    } catch (err) {
+      console.error('댓글 수정 실패:', err);
+      alert('댓글 수정에 실패했습니다.');
+    }
+  };
+
+  // 댓글 수정 취소
+  const handleCancelEdit = () => {
+    setEditingCommentId(null);
+    setEditingContent('');
+  };
+
+  // 댓글 삭제
+  const handleDeleteComment = async (commentId) => {
+    if (!window.confirm('댓글을 삭제하시겠습니까?')) return;
+    try {
+      await commentAPI.delete(commentId);
+      // fetchComments() 제거 - 실시간 업데이트로 처리됨
+    } catch (err) {
+      console.error('댓글 삭제 실패:', err);
+      alert('댓글 삭제에 실패했습니다.');
+    }
+  };
 
   // 편집 모드 시작
   const handleEditStart = () => {
@@ -341,50 +533,6 @@ export default function TaskDetailPage({
     }
   };
 
-  // 댓글 수정 시작
-  const handleEditComment = (comment) => {
-    setEditingCommentId(comment.comment_id);
-    setEditingContent(comment.content);
-  };
-  // 댓글 수정 취소
-  const handleCancelEdit = () => {
-    setEditingCommentId(null);
-    setEditingContent('');
-  };
-  // 댓글 수정 저장
-  const handleSaveEdit = async (comment_id) => {
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      alert('로그인 후 이용해주세요.');
-      navigate('/login');
-      return;
-    }
-    try {
-      await commentAPI.update(comment_id, editingContent);
-      setEditingCommentId(null);
-      setEditingContent('');
-      fetchComments();
-    } catch (err) {
-      alert('댓글 수정에 실패했습니다.');
-    }
-  };
-  // 댓글 삭제
-  const handleDeleteComment = async (comment_id) => {
-    if (!window.confirm('정말 삭제하시겠습니까?')) return;
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      alert('로그인 후 이용해주세요.');
-      navigate('/login');
-      return;
-    }
-    try {
-      await commentAPI.delete(comment_id);
-      fetchComments();
-    } catch (err) {
-      alert('댓글 삭제에 실패했습니다.');
-    }
-  };
-
   // 로딩 / 오류 / 빈 데이터 처리
   if (loading) return <div className="p-4 text-center">로딩 중…</div>;
   if (error) {
@@ -499,20 +647,43 @@ export default function TaskDetailPage({
           <div className="mt-8">
             <h3 className="text-lg font-bold mb-2">댓글</h3>
             {currentUserRole !== 'viewer' ? (
-              <div className="flex items-center mb-2">
-                <textarea
-                  className="flex-1 border border-gray-300 rounded-md p-2 mr-2"
-                  rows={2}
-                  value={newComment}
-                  onChange={e => setNewComment(e.target.value)}
-                  placeholder="댓글을 입력하세요."
-                />
-                <button
-                  onClick={handleAddComment}
-                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md"
-                >
-                  댓글 등록
-                </button>
+              <div className="relative">
+                <div className="flex items-center mb-2">
+                  <div className="flex-1 relative mr-2">
+                    <textarea
+                      className="w-full border border-gray-300 rounded-md p-2 resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      rows={2}
+                      value={newComment}
+                      onChange={handleCommentChange}
+                      placeholder="댓글을 입력하세요. @사용자명 으로 멘션할 수 있습니다."
+                    />
+                    {/* 멘션 제안 목록 */}
+                    {showMentionSuggestions && mentionSuggestions.length > 0 && (
+                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-40 overflow-y-auto">
+                        {mentionSuggestions.map((member) => (
+                          <div
+                            key={member.user_id}
+                            className="px-3 py-2 cursor-pointer hover:bg-gray-100 flex items-center"
+                            onClick={() => handleMentionSelect(member)}
+                          >
+                            <span className="text-sm font-medium">@{member.name}</span>
+                            <span className="text-xs text-gray-500 ml-2">({member.role})</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={handleAddComment}
+                    className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md transition-colors"
+                  >
+                    댓글 등록
+                  </button>
+                </div>
+                {/* 멘션 도움말 */}
+                <div className="text-xs text-gray-500 mb-2">
+                  💡 @사용자명을 입력하면 해당 사용자에게 알림이 전송됩니다.
+                </div>
               </div>
             ) : (
               <div className="mb-2 p-3 bg-gray-50 rounded-md border">
@@ -561,7 +732,7 @@ export default function TaskDetailPage({
                             <span className="text-sm font-medium text-gray-700">{c.user_name || '알 수 없음 (탈퇴)'}</span>
                             <span className="text-xs text-gray-500">{new Date(c.updated_at).toLocaleString()} {c.is_updated ? '(수정됨)' : ''}</span>
                           </div>
-                          <div className="text-sm text-gray-800">{c.content}</div>
+                          <div className="text-sm text-gray-800">{renderCommentContent(c.content)}</div>
                         </div>
                         {currentUser && c.user_id === currentUser.user_id && currentUserRole !== 'viewer' && (
                           <div className="flex gap-2 ml-2">

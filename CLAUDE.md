@@ -72,6 +72,19 @@ npm test
 2. 조직 선택 → 해당 조직의 프로젝트 목록 fetch
 3. 프로젝트 작업 → API 호출 → Context 상태 업데이트
 
+### WebSocket 실시간 통신
+- **WebSocketProvider**: 전역 WebSocket 연결 관리 (`src/websocket/WebSocketContext.jsx`)
+- **실시간 훅**: `useTaskRealtime`, `useCommentRealtime`, `useNotificationRealtime`
+- **룸 시스템**: 사용자별, 프로젝트별, 워크스페이스별 실시간 업데이트
+- **자동 재연결**: 연결 실패 시 최대 5회 재시도
+- **메시지 타입**: Task CRUD, Comment CRUD, 알림, 사용자 상태 등
+
+### 백엔드 연동
+- **FastAPI**: Python 백엔드 (localhost:8005)
+- **WebSocket**: `/ws/connect` 엔드포인트로 실시간 연결
+- **JWT 인증**: WebSocket 연결 시 토큰 기반 인증
+- **이벤트 발행**: Task/Comment 변경 시 자동 WebSocket 이벤트 발행
+
 ### 주요 라이브러리
 - **@fullcalendar/react**: 캘린더 컴포넌트
 - **@react-oauth/google**: 구글 OAuth

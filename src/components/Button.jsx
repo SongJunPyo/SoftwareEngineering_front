@@ -34,10 +34,10 @@ export const SettingsButton = () => {
 };
 
 /** ─────────── Alert(🔔) 버튼 (Loader 컴포넌트 → alert 용) ─────────── **/
-export const AlertButton = ({ onClick }) => {
+export const AlertButton = ({ onClick, unreadCount = 0 }) => {
   return (
     <StyledWrapper>
-      <div className="loader" onClick={onClick}>
+      <div className="loader" onClick={onClick} style={{ position: 'relative' }}>
         <svg
           viewBox="0 0 24 24"
           fill="none"
@@ -55,7 +55,11 @@ export const AlertButton = ({ onClick }) => {
             stroke="currentColor"
           />
         </svg>
-        <div className="point" />
+        {unreadCount > 0 && (
+          <div className="notification-badge">
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </div>
+        )}
       </div>
     </StyledWrapper>
   );
@@ -179,5 +183,26 @@ const StyledWrapper = styled.div`
       width: 30px;
       height: 30px;
     }
+  }
+
+  /* ───────── Notification Badge ───────── */
+  .notification-badge {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background-color: #ef4444;
+    color: white;
+    border-radius: 50%;
+    min-width: 18px;
+    height: 18px;
+    font-size: 11px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    border: 2px solid white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    z-index: 10;
   }
 `;
