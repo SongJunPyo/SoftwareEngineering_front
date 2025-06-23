@@ -357,7 +357,26 @@ function LoginPage({ onLogin }) {
       } else if (error.response?.status === 409) {
         setError(error.response.data.detail || "이미 가입된 이메일입니다.");
       } else if (error.response?.status === 422) {
-        setError("입력 정보가 올바르지 않습니다.");
+        // Pydantic 검증 오류 처리
+        const detail = error.response.data?.detail;
+        if (Array.isArray(detail)) {
+          // Pydantic 오류는 배열 형태로 오는 경우가 있음
+          const emailError = detail.find(err => err.type === 'value_error' && 'email' in err.loc);
+          if (emailError) {
+            setError("올바른 이메일 형식을 입력해주세요.");
+          } else {
+            setError("입력 정보가 올바르지 않습니다.");
+          }
+        } else if (typeof detail === 'string') {
+          // 문자열 형태의 오류 메시지
+          if (detail.includes('email') || detail.includes('이메일')) {
+            setError("올바른 이메일 형식을 입력해주세요.");
+          } else {
+            setError("입력 정보가 올바르지 않습니다.");
+          }
+        } else {
+          setError("입력 정보가 올바르지 않습니다.");
+        }
       } else if (error.response?.status === 429) {
         setError("너무 많은 로그인 시도입니다. 잠시 후 다시 시도해주세요.");
       } else if (error.response?.status === 500) {
@@ -577,6 +596,7 @@ function LoginPage({ onLogin }) {
                 error={error}
                 onSubmit={handleLogin}
                 onUpdate={updateFormData}
+                onEmailValidation={setError}
               />
               
               {/* 비밀번호 찾기 링크 */}

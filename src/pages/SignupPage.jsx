@@ -128,6 +128,12 @@ export default function SignupPage() {
     }
   };
 
+  // 이메일 형식 검증 함수
+  const validateEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
   const handleSignup = async (e) => {
     e.preventDefault();
     setError("");
@@ -138,11 +144,20 @@ export default function SignupPage() {
       setSignupLoading(false);
       return;
     }
+
+    // 이메일 형식 검증
+    if (!validateEmail(email)) {
+      setError("올바른 이메일 형식을 입력해주세요.");
+      setSignupLoading(false);
+      return;
+    }
+
     if (password !== confirmPassword) {
       setError("비밀번호가 일치하지 않습니다.");
       setSignupLoading(false);
       return;
     }
+
     try {
       const response = await authAPI.register({
         email: email,
@@ -193,7 +208,26 @@ export default function SignupPage() {
       console.error('Signup error:', error.response?.data || error);
       if (error.response) {
         if (error.response.status === 422) {
-          setError("비밀번호 요구사항이 지켜지지 않았습니다.");
+          // Pydantic 검증 오류 처리
+          const detail = error.response.data?.detail;
+          if (Array.isArray(detail)) {
+            // Pydantic 오류는 배열 형태로 오는 경우가 있음
+            const emailError = detail.find(err => err.type === 'value_error' && 'email' in err.loc);
+            if (emailError) {
+              setError("올바른 이메일 형식을 입력해주세요.");
+            } else {
+              setError("비밀번호 요구사항이 지켜지지 않았습니다.");
+            }
+          } else if (typeof detail === 'string') {
+            // 문자열 형태의 오류 메시지
+            if (detail.includes('email') || detail.includes('이메일')) {
+              setError("올바른 이메일 형식을 입력해주세요.");
+            } else {
+              setError("비밀번호 요구사항이 지켜지지 않았습니다.");
+            }
+          } else {
+            setError("비밀번호 요구사항이 지켜지지 않았습니다.");
+          }
         } else if (error.response.status === 409) {
           if (error.response.data && typeof error.response.data.detail === 'string' && error.response.data.detail.includes('구글')) {
             setError("구글계정으로 연동되어있는 이메일입니다.");
@@ -271,6 +305,13 @@ export default function SignupPage() {
                 className="w-full border border-gray-300 rounded px-4 py-2 mb-3 text-base"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                onBlur={(e) => {
+                  if (e.target.value && !validateEmail(e.target.value)) {
+                    setError("올바른 이메일 형식을 입력해주세요.");
+                  } else if (error === "올바른 이메일 형식을 입력해주세요.") {
+                    setError("");
+                  }
+                }}
                 readOnly={!!invitationContext}
               />
               <input

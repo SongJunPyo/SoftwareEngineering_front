@@ -1,7 +1,13 @@
 import React from 'react';
 
-function LoginForm({ formData, error, onSubmit, onUpdate }) {
+function LoginForm({ formData, error, onSubmit, onUpdate, onEmailValidation }) {
   const { email, password } = formData;
+
+  // 이메일 형식 검증 함수
+  const validateEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
 
   return (
     <>
@@ -17,6 +23,13 @@ function LoginForm({ formData, error, onSubmit, onUpdate }) {
           className="w-full border border-gray-300 rounded px-4 py-2 mb-3 text-base"
           value={email}
           onChange={(e) => onUpdate('email', e.target.value)}
+          onBlur={(e) => {
+            if (onEmailValidation && e.target.value && !validateEmail(e.target.value)) {
+              onEmailValidation("올바른 이메일 형식을 입력해주세요.");
+            } else if (onEmailValidation && error === "올바른 이메일 형식을 입력해주세요.") {
+              onEmailValidation("");
+            }
+          }}
         />
         <input
           type="password"

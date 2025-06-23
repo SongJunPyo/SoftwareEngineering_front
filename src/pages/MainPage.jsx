@@ -29,6 +29,64 @@ export default function MainPage() {
   const [currentUser, setCurrentUser] = useState(null);
   const [dashboardData, setDashboardData] = useState(null);
 
+  // 초대 컨텍스트 정리 함수
+  const cleanupInvitationContext = () => {
+    try {
+      const pendingInvitationStr = localStorage.getItem('pendingInvitation');
+      if (pendingInvitationStr) {
+        const invitationData = JSON.parse(pendingInvitationStr);
+        
+        // 만료 체크 (24시간)
+        const expires = invitationData.timestamp + (24 * 60 * 60 * 1000);
+        if (Date.now() > expires) {
+          console.log('메인 페이지 - 초대 컨텍스트 만료됨, 정리');
+          localStorage.removeItem('pendingInvitation');
+          return;
+        }
+        
+        // 현재 사용자가 초대받은 프로젝트에 이미 참여하고 있는지 확인
+        if (project && invitationData.project === project.name) {
+          console.log('메인 페이지 - 초대받은 프로젝트에 이미 참여 중, 초대 컨텍스트 정리');
+          localStorage.removeItem('pendingInvitation');
+          return;
+        }
+        
+        // 초대 ID가 현재 URL과 일치하는지 확인 (초대 수락 페이지에서 온 경우)
+        if (invitationData.invitationId && window.location.pathname.includes('/invite/')) {
+          console.log('메인 페이지 - 초대 수락 페이지에서 이동, 초대 컨텍스트 정리');
+          localStorage.removeItem('pendingInvitation');
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('메인 페이지 - 초대 컨텍스트 정리 중 오류:', error);
+      localStorage.removeItem('pendingInvitation');
+    }
+  };
+
+  // 컴포넌트 마운트 시 초대 컨텍스트 정리
+  useEffect(() => {
+    cleanupInvitationContext();
+  }, []);
+
+  // 프로젝트 변경 시 초대 컨텍스트 재확인
+  useEffect(() => {
+    if (project) {
+      cleanupInvitationContext();
+    }
+  }, [project]);
+
+  // 페이지 포커스 시 초대 컨텍스트 재확인
+  useEffect(() => {
+    const handleFocus = () => {
+      console.log('메인 페이지 포커스 - 초대 컨텍스트 재확인');
+      cleanupInvitationContext();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [project]);
+
   // 대시보드 데이터 가져오기
   useEffect(() => {
     const fetchDashboardData = async () => {

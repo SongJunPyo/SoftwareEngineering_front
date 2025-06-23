@@ -228,6 +228,36 @@ export default function useNotifications(user) {
         }
         break;
         
+      case 'project_member_removed':
+        // 프로젝트 멤버 제거 알림 처리
+        console.log('👥 프로젝트 멤버 제거 알림:', update.data);
+        
+        const removedNotification = {
+          notification_id: Date.now() + 1, // 임시 ID
+          type: 'project_member_removed',
+          title: '프로젝트에서 제거되었습니다',
+          message: `'${update.data.name}' 프로젝트에서 제거되었습니다.`,
+          is_read: false,
+          created_at: new Date().toISOString(),
+          related_id: update.data.project_id
+        };
+        
+        setNotifications(prev => [removedNotification, ...prev]);
+        setUnreadCount(prev => prev + 1);
+        setLatestNotification(removedNotification); // 최신 알림 설정
+        // 즉시 리셋하여 중복 처리 방지
+        setTimeout(() => setLatestNotification(null), 100);
+        
+        // 브라우저 알림 표시
+        if (Notification.permission === 'granted') {
+          new Notification('프로젝트 멤버 제거', {
+            body: removedNotification.message,
+            icon: '/favicon.ico',
+            tag: `project_${update.data.project_id}`
+          });
+        }
+        break;
+        
       case 'comment_mention':
         // 댓글 멘션 알림 처리
         console.log('💬 댓글 멘션 알림:', update.data);
@@ -307,9 +337,10 @@ export default function useNotifications(user) {
     if (filter === 'unread') return !n.is_read;
     if (filter === 'project') {
       return n.type === 'project' || n.type === 'project_invited' || 
-             n.type === 'project_member_added' || n.type === 'project_updated' ||
-             n.type === 'project_deleted' || n.type === 'project_member_role_changed' ||
-             n.type === 'invitation_accepted' || n.type === 'invitation_declined';
+             n.type === 'project_member_added' || n.type === 'project_member_removed' ||
+             n.type === 'project_updated' || n.type === 'project_deleted' ||
+             n.type === 'project_member_role_changed' || n.type === 'invitation_accepted' || 
+             n.type === 'invitation_declined';
     }
     if (filter === 'task') {
       return n.type === 'task_assigned' || n.type === 'task_updated' || 

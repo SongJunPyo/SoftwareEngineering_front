@@ -238,16 +238,26 @@ export default function InviteAcceptPage() {
     try {
       const response = await projectAPI.acceptInvitation(invitationId, selectedWorkspaceId);
       
-      // 초대 수락 성공 시 localStorage에서 초대 정보 제거
+      // 초대 수락 성공 시 localStorage에서 초대 정보 완전 제거
       localStorage.removeItem('pendingInvitation');
+      
+      // 추가로 초대 관련 데이터 정리
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.includes('invitation') || key && key.includes('pending')) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(key => localStorage.removeItem(key));
       
       setStep('success');
       setMessage('프로젝트에 성공적으로 참여했습니다!');
       
-      // 3초 후 메인 페이지로 이동
+      // 1.5초 후 메인 페이지로 이동
       setTimeout(() => {
-        navigate('/main');
-      }, 3000);
+        navigate('/main', { replace: true });
+      }, 1500);
     } catch (error) {
       console.error('초대 수락 실패:', error);
       setStep('error');
@@ -271,16 +281,26 @@ export default function InviteAcceptPage() {
       const response = await projectAPI.rejectInvitation(invitationId);
       console.log('초대 거절 성공:', response);
       
-      // 초대 거절 성공 시 localStorage에서 초대 정보 제거
+      // 초대 거절 성공 시 localStorage에서 초대 정보 완전 제거
       localStorage.removeItem('pendingInvitation');
+      
+      // 추가로 초대 관련 데이터 정리
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.includes('invitation') || key && key.includes('pending')) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(key => localStorage.removeItem(key));
       
       setStep('success');
       setMessage('초대를 거절했습니다.');
       
-      // 3초 후 메인 페이지로 이동
+      // 1.5초 후 메인 페이지로 이동
       setTimeout(() => {
-        navigate('/main');
-      }, 3000);
+        navigate('/main', { replace: true });
+      }, 1500);
     } catch (error) {
       console.error('초대 거절 실패:', error);
       console.error('에러 상세:', {
@@ -538,11 +558,11 @@ export default function InviteAcceptPage() {
         return (
           <div className="text-center">
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="h-8 w-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">초대 수락 완료!</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">처리 완료!</h2>
             <p className="text-gray-600 mb-4">{message}</p>
             <p className="text-sm text-gray-500">잠시 후 메인 페이지로 이동합니다...</p>
           </div>
